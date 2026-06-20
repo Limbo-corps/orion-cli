@@ -44,6 +44,15 @@ class VoiceRecordingFailedEvent(Event):
     status: EventStatus = EventStatus.ERROR
     error: str
 
+class SpeechDetectedEvent(Event):
+    status: EventStatus = EventStatus.INFO
+    # fired when the user STARTS talking (energy crosses the threshold)
+
+class SilenceDetectedEvent(Event):
+    status: EventStatus = EventStatus.INFO
+    silence_duration: float = 0.0
+    # fired when sustained silence is detected and recording stops
+
 
 # ============================================================
 # Speech-to-Text Events

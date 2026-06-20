@@ -3,6 +3,8 @@ from events.events import (
     PipelineCompleteEvent,
     VoiceRecordingStartEvent,
     VoiceRecordingCompletedEvent,
+    SpeechDetectedEvent,
+    SilenceDetectedEvent,
     TranscriptGeneratedEvent,
     AgentProcessingStartEvent,
     ResponseGeneratedEvent,
@@ -16,6 +18,9 @@ from events.registry import EventRegistry
 
 EventRegistry.register(PipelineStartEvent)
 EventRegistry.register(PipelineCompleteEvent)
+
+EventRegistry.register(SpeechDetectedEvent)
+EventRegistry.register(SilenceDetectedEvent)
 
 EventRegistry.register(VoiceRecordingStartEvent)
 EventRegistry.register(VoiceRecordingCompletedEvent)
