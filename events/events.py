@@ -44,9 +44,11 @@ class VoiceRecordingFailedEvent(Event):
     status: EventStatus = EventStatus.ERROR
     error: str
 
+
 class SpeechDetectedEvent(Event):
     status: EventStatus = EventStatus.INFO
     # fired when the user STARTS talking (energy crosses the threshold)
+
 
 class SilenceDetectedEvent(Event):
     status: EventStatus = EventStatus.INFO
