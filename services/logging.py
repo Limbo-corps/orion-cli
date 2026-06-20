@@ -108,7 +108,7 @@ class LoggingService(BaseService):
 
         # if error:
         #     print(f"└─ ERROR: {error}")
-        
+
         # text = getattr(event, "text", None)
 
         # if text:

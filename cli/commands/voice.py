@@ -32,9 +32,7 @@ async def pipeline_loop(
             raise
 
         except Exception as e:
-            print(
-                f"Pipeline failed: {e}"
-            )
+            print(f"Pipeline failed: {e}")
 
         await asyncio.sleep(0.25)
 
@@ -62,7 +60,6 @@ async def run() -> None:
         await app.run_async()
 
     finally:
-
         pipeline_task.cancel()
 
         try:

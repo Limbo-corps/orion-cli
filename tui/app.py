@@ -1,7 +1,7 @@
 # tui/app.py
 
 from textual.app import App
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal
 
 from tui.widgets.banner import BannerWidget
 from tui.widgets.conversation import ConversationWidget
@@ -10,7 +10,6 @@ from tui.widgets.status import StatusWidget
 
 
 class OrionApp(App):
-
     instance: "OrionApp | None" = None
 
     CSS = """
@@ -54,24 +53,14 @@ class OrionApp(App):
 
     def compose(self):
 
-        yield BannerWidget(
-            id="banner"
-        )
+        yield BannerWidget(id="banner")
 
-        with Horizontal(
-            id="content"
-        ):
-            yield ConversationWidget(
-                id="conversation"
-            )
+        with Horizontal(id="content"):
+            yield ConversationWidget(id="conversation")
 
-            yield EventStreamWidget(
-                id="events"
-            )
+            yield EventStreamWidget(id="events")
 
-        yield StatusWidget(
-            id="status"
-        )
+        yield StatusWidget(id="status")
 
     def on_mount(self) -> None:
 

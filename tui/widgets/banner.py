@@ -12,7 +12,6 @@ from textual.widgets import Static
 
 
 class BannerWidget(Static):
-
     DEFAULT_CSS = """
     BannerWidget {
         width: 100%;
@@ -64,11 +63,9 @@ class BannerWidget(Static):
             img.height - 1,
             2,
         ):
-
             row = ""
 
             for x in range(img.width):
-
                 top = pixels[x, y]
                 bottom = pixels[x, y + 1]
 
@@ -118,44 +115,25 @@ class BannerWidget(Static):
         title_height = len(title_lines)
 
         if logo_height > title_height:
+            pad_top = (logo_height - title_height) // 2
 
-            pad_top = (
-                logo_height - title_height
-            ) // 2
-
-            title_lines = (
-                [""] * pad_top
-                + title_lines
-            )
+            title_lines = [""] * pad_top + title_lines
 
         elif title_height > logo_height:
+            pad_top = (title_height - logo_height) // 2
 
-            pad_top = (
-                title_height - logo_height
-            ) // 2
-
-            logo_lines = (
-                [""] * pad_top
-                + logo_lines
-            )
+            logo_lines = [""] * pad_top + logo_lines
 
         max_lines = max(
             len(logo_lines),
             len(title_lines),
         )
 
-        logo_lines += [""] * (
-            max_lines - len(logo_lines)
-        )
+        logo_lines += [""] * (max_lines - len(logo_lines))
 
-        title_lines += [""] * (
-            max_lines - len(title_lines)
-        )
+        title_lines += [""] * (max_lines - len(title_lines))
 
-        logo_width = max(
-            len(line)
-            for line in logo_lines
-        )
+        logo_width = max(len(line) for line in logo_lines)
 
         rows: list[str] = []
 
@@ -163,16 +141,12 @@ class BannerWidget(Static):
             logo_lines,
             title_lines,
         ):
-            rows.append(
-                f"{logo:<{logo_width + 8}}{title}"
-            )
+            rows.append(f"{logo:<{logo_width + 8}}{title}")
 
         subtitle_indent = logo_width + 8
 
         for line in subtitle_lines:
-            rows.append(
-                " " * subtitle_indent + line
-            )
+            rows.append(" " * subtitle_indent + line)
 
         return "\n".join(rows)
 

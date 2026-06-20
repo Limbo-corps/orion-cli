@@ -18,7 +18,6 @@ from tui.app import OrionApp
 
 
 class TUIService(BaseService):
-
     service_name = "tui"
 
     def __init__(self) -> None:
@@ -84,7 +83,6 @@ class TUIService(BaseService):
         )
 
         if app:
-
             app.add_event(
                 event_name,
                 event.message,
@@ -106,7 +104,6 @@ class TUIService(BaseService):
             event,
             TranscriptGeneratedEvent,
         ):
-
             self.conversation.append(
                 (
                     "user",
@@ -123,7 +120,6 @@ class TUIService(BaseService):
             event,
             ResponseGeneratedEvent,
         ):
-
             self.conversation.append(
                 (
                     "assistant",

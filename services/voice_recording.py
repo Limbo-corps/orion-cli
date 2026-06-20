@@ -69,18 +69,14 @@ class VoiceRecordingService(BaseService):
         sample_rate: int = 16000,
     ) -> str:
 
-        output_dir = Path(
-            "data/audio"
-        )
+        output_dir = Path("data/audio")
 
         output_dir.mkdir(
             parents=True,
             exist_ok=True,
         )
 
-        output_path = (
-            output_dir / "input.wav"
-        )
+        output_path = output_dir / "input.wav"
 
         #
         # Non-blocking recording.
@@ -98,23 +94,16 @@ class VoiceRecordingService(BaseService):
         # sd.wait() blocks the event loop.
         # Run it in a worker thread.
         #
-        await asyncio.to_thread(
-            sd.wait
-        )
+        await asyncio.to_thread(sd.wait)
 
         with wave.open(
             str(output_path),
             "wb",
         ) as wav_file:
-
             wav_file.setnchannels(1)
             wav_file.setsampwidth(2)
-            wav_file.setframerate(
-                sample_rate
-            )
+            wav_file.setframerate(sample_rate)
 
-            wav_file.writeframes(
-                recording.tobytes()
-            )
+            wav_file.writeframes(recording.tobytes())
 
         return str(output_path)

@@ -11,7 +11,7 @@ def setup_services():
         TranscriptGenerationService(),
         AgentService(),
         TTSService(),
-        AudioPlaybackService()
+        AudioPlaybackService(),
     ]
 
     for service in services:
