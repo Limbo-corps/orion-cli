@@ -227,6 +227,18 @@ If you want to inspect the runtime directly, `main.py` is also present as a loca
 uv run pytest
 ```
 
+## Before Pushing a PR
+
+Run the project checks locally before you push a pull request:
+
+```bash
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+```
+
+If you are making code changes, it is worth running both commands again after your final edit so the PR starts clean.
+
 ## Notes
 
 - `chat` is still a placeholder command.
