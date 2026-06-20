@@ -1,5 +1,8 @@
 from events.base import Event, EventStatus
 
+# ============================================================
+# Log Events
+# ============================================================
 
 # ============================================================
 # Pipeline Events
@@ -18,6 +21,8 @@ class PipelineFailedEvent(Event):
     status: EventStatus = EventStatus.ERROR
     error: str
 
+class PipelineRestartEvent(Event):
+    status: EventStatus = EventStatus.INFO
 
 # ============================================================
 # Voice Events
@@ -80,3 +85,17 @@ class SpeechSynthesisStartEvent(Event):
 class SpeechGeneratedEvent(Event):
     status: EventStatus = EventStatus.INFO
     audio_path: str | None = None
+
+
+class SpeechGenerationFailedEvent(Event):
+    status: EventStatus = EventStatus.ERROR
+    error: str
+
+
+# ============================================================
+# Audio Playback Events
+# ============================================================
+
+class AudioPlaybackFailedEvent(Event):
+    status: EventStatus = EventStatus.ERROR
+    error: str

@@ -1,16 +1,45 @@
 [project]
 name = "orion"
 version = "0.1.0"
-description = "Add your description here"
+description = "Voice-Native AI Assistant"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "aiosqlite>=0.22.1",
     "groq>=1.4.0",
+    "gtts>=2.5.4",
+    "kokoro>=0.9.4",
+    "misaki[en]>=0.9.4",
     "numpy>=2.4.6",
+    "pillow>=12.2.0",
+    "pip>=26.1.2",
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
     "rich>=15.0.0",
     "ruff>=0.15.18",
     "sounddevice>=0.5.5",
+    "soundfile>=0.14.0",
+    "textual>=8.2.7",
+    "typer>=0.26.7",
+]
+
+[project.scripts]
+orion = "cli.app:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "bus",
+    "cli",
+    "core",
+    "events",
+    "orchestrator",
+    "services",
+    "store",
 ]

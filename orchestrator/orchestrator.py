@@ -8,6 +8,7 @@ from events.events import (
 
 from services.logging import LoggingService
 from services.setup import setup_services
+from services.tui import TUIService
 
 
 class Orchestrator:
@@ -15,12 +16,13 @@ class Orchestrator:
         self,
         bus: EventBus,
     ) -> None:
+
         self.bus = bus
 
         self.logger = LoggingService()
+        self.tui = TUIService()
 
         self.services = []
-
         self._started = False
 
     async def startup(self) -> None:
@@ -31,15 +33,30 @@ class Orchestrator:
         if self._started:
             return
 
-        # Register and initialize services
-        self.services = setup_services()
+        #
+        # Register core services
+        #
+        self.services = [
+            *setup_services(),
+            self.logger,
+            self.tui,
+        ]
 
+        #
+        # Start services
+        #
         for service in self.services:
             await service.startup()
 
-        # Global subscribers
+        #
+        # Global observers
+        #
         self.bus.subscribe_all(
             self.logger.handle,
+        )
+
+        self.bus.subscribe_all(
+            self.tui.handle,
         )
 
         self._started = True

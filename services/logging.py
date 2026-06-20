@@ -14,22 +14,22 @@ class LoggingService(BaseService):
         self,
         event: Event,
     ) -> None:
+        pass
+        # print(
+        #     f"[{event.status}] "
+        #     f"[{event.timestamp}] "
+        #     f"[{event.correlation_id}] "
+        #     f"[{event.source}] "
+        #     f"{event.__class__.__name__} "
+        #     f"{event.message}"
+        # )
 
-        print(
-            f"[{event.status}] "
-            f"[{event.timestamp}] "
-            f"[{event.correlation_id}] "
-            f"[{event.source}] "
-            f"{event.__class__.__name__} "
-            f"{event.message}"
-        )
+        # error = getattr(event, "error", None)
 
-        error = getattr(event, "error", None)
-
-        if error:
-            print(f"└─ ERROR: {error}")
+        # if error:
+        #     print(f"└─ ERROR: {error}")
         
-        text = getattr(event, "text", None)
+        # text = getattr(event, "text", None)
 
-        if text:
-            print(f"└─ TEXT: {text}")
+        # if text:
+        #     print(f"└─ TEXT: {text}")

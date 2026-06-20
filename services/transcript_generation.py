@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 from groq import Groq
@@ -22,16 +23,24 @@ class TranscriptGenerationService(BaseService):
     def __init__(self):
         super().__init__()
 
-        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        self.client = Groq(
+            api_key=os.getenv("GROQ_API_KEY"),
+        )
 
-    async def handle(self, event: Event) -> None:
+    async def handle(
+        self,
+        event: Event,
+    ) -> None:
+
         try:
             assert isinstance(
                 event,
                 VoiceRecordingCompletedEvent,
             )
 
-            transcript = await self.transcribe(event.audio_path)
+            transcript = await self.transcribe(
+                event.audio_path,
+            )
 
             await self.publish(
                 TranscriptGeneratedEvent(
@@ -53,6 +62,16 @@ class TranscriptGenerationService(BaseService):
             )
 
     async def transcribe(
+        self,
+        audio_path: str,
+    ) -> str:
+
+        return await asyncio.to_thread(
+            self._transcribe_sync,
+            audio_path,
+        )
+
+    def _transcribe_sync(
         self,
         audio_path: str,
     ) -> str:
