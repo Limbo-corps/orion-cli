@@ -1,7 +1,6 @@
 # tui/widgets/status.py
 
 from textual.widgets import Static
-from textual.timer import Timer
 
 
 SPINNER = [

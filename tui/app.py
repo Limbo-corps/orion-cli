@@ -1,7 +1,7 @@
 # tui/app.py
 
 from textual.app import App
-from textual.containers import Vertical, Horizontal
+from textual.containers import Horizontal
 
 from tui.widgets.banner import BannerWidget
 from tui.widgets.conversation import ConversationWidget
