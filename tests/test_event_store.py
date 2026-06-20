@@ -2,7 +2,7 @@ import asyncio
 from uuid import uuid4
 
 from events.speech import TranscriptGenerated
-from store.event_store import SQLiteEventStore
+from store.sqlite_store import SQLiteEventStore
 
 
 async def main() -> None:
