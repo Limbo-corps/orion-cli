@@ -1,15 +1,12 @@
 from services.base import BaseService
 from events.base import Event
 
-import os
-import json 
+import json
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import sys
 import asyncio
-
-
 
 
 class LoggingService(BaseService):
@@ -23,9 +20,9 @@ class LoggingService(BaseService):
         self.log_dir = Path(log_dir)
         self.log_file = Path(log_file) if log_file else self.log_dir / "orion.log"
 
-    async def startup(self)->None:
+    async def startup(self) -> None:
         try:
-            self.log_dir.mkdir(parents=True,exist_ok=True)
+            self.log_dir.mkdir(parents=True, exist_ok=True)
             self.logger_instance = logging.getLogger("orion_event_logger")
             self.logger_instance.setLevel(logging.INFO)
             self.logger_instance.propagate = False
@@ -43,12 +40,11 @@ class LoggingService(BaseService):
             print(f"Failed to initialize logging service: {e}", file=sys.stderr)
             sys.exit(1)
 
-    async def shutdown(self)->None:
+    async def shutdown(self) -> None:
         if self.handler:
             self.handler.close()
             if self.logger_instance:
                 self.logger_instance.removeHandler(self.handler)
-
 
     async def handle(
         self,
@@ -71,22 +67,19 @@ class LoggingService(BaseService):
                 "message",
             }
 
-            payload = {
-                k:v for k,v in full_dump.items() if k not in base_keys
-            }
+            payload = {k: v for k, v in full_dump.items() if k not in base_keys}
 
             structured_log = {
-                "timestamp":full_dump.get("timestamp"),
-                "event_id":full_dump.get("event_id"),
-                "correlation_id":full_dump.get("correlation_id"),
-                "event_type":event.__class__.__name__,
-                "source":full_dump.get("source"),
-                "message":full_dump.get("message"),
-                "payload":payload,
+                "timestamp": full_dump.get("timestamp"),
+                "event_id": full_dump.get("event_id"),
+                "correlation_id": full_dump.get("correlation_id"),
+                "event_type": event.__class__.__name__,
+                "source": full_dump.get("source"),
+                "message": full_dump.get("message"),
+                "payload": payload,
             }
 
-
-            self.logger_instance.info(json.dumps(structured_log,ensure_ascii=False))
+            self.logger_instance.info(json.dumps(structured_log, ensure_ascii=False))
         except Exception as e:
             print(f"Failed to log event {event.event_id}: {e}", file=sys.stderr)
 
