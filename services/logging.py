@@ -1,6 +1,7 @@
 from services.base import BaseService
 from events.base import Event
 
+
 class LoggingService(BaseService):
     service_name = "logger"
 
@@ -28,7 +29,7 @@ class LoggingService(BaseService):
 
         # if error:
         #     print(f"└─ ERROR: {error}")
-        
+
         # text = getattr(event, "text", None)
 
         # if text:

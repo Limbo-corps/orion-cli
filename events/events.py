@@ -21,8 +21,10 @@ class PipelineFailedEvent(Event):
     status: EventStatus = EventStatus.ERROR
     error: str
 
+
 class PipelineRestartEvent(Event):
     status: EventStatus = EventStatus.INFO
+
 
 # ============================================================
 # Voice Events
@@ -95,6 +97,7 @@ class SpeechGenerationFailedEvent(Event):
 # ============================================================
 # Audio Playback Events
 # ============================================================
+
 
 class AudioPlaybackFailedEvent(Event):
     status: EventStatus = EventStatus.ERROR

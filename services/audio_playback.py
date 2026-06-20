@@ -28,9 +28,7 @@ class AudioPlaybackService(BaseService):
             )
 
             if not event.audio_path:
-                raise ValueError(
-                    "No audio path provided."
-                )
+                raise ValueError("No audio path provided.")
 
             await self.play(
                 event.audio_path,
@@ -69,9 +67,7 @@ class AudioPlaybackService(BaseService):
     ) -> None:
 
         if not Path(audio_path).exists():
-            raise FileNotFoundError(
-                f"Audio file not found: {audio_path}"
-            )
+            raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         data, sample_rate = sf.read(
             audio_path,

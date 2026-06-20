@@ -8,6 +8,7 @@ from enum import Enum
 # Event Status
 # ============================================================
 
+
 class EventStatus(str, Enum):
     INFO = "INFO"
     WARNING = "WARNING"

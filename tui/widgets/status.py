@@ -18,7 +18,6 @@ SPINNER = [
 
 
 class StatusWidget(Static):
-
     DEFAULT_CSS = """
     StatusWidget {
         height: 3;
@@ -76,15 +75,9 @@ class StatusWidget(Static):
 
     def refresh_status(self) -> None:
 
-        spinner = SPINNER[
-            self._frame % len(SPINNER)
-        ]
+        spinner = SPINNER[self._frame % len(SPINNER)]
 
-        mic_color = (
-            "#f7768e"
-            if self.mode == "RECORDING"
-            else "#9ece6a"
-        )
+        mic_color = "#f7768e" if self.mode == "RECORDING" else "#9ece6a"
 
         mode_color = {
             "IDLE": "#9ece6a",

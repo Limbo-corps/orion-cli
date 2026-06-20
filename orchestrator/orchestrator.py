@@ -84,10 +84,7 @@ class Orchestrator:
                 await service.shutdown()
 
             except Exception as e:
-                print(
-                    f"Failed to shutdown "
-                    f"{service}: {e}"
-                )
+                print(f"Failed to shutdown {service}: {e}")
 
         self.services.clear()
 

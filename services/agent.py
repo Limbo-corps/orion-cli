@@ -24,9 +24,7 @@ class AgentService(BaseService):
     def __init__(self):
         super().__init__()
 
-        self.client = Groq(
-            api_key=os.getenv("GROQ_API_KEY")
-        )
+        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
     async def handle(self, event: Event) -> None:
         try:
@@ -35,9 +33,7 @@ class AgentService(BaseService):
                 TranscriptGeneratedEvent,
             )
 
-            response = await self.generate_response(
-                event.text
-            )
+            response = await self.generate_response(event.text)
 
             await self.publish(
                 ResponseGeneratedEvent(
@@ -63,16 +59,14 @@ class AgentService(BaseService):
         prompt: str,
     ) -> str:
 
-        completion = (
-            self.client.chat.completions.create(
-                model="openai/gpt-oss-120b",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
-                ],
-            )
+        completion = self.client.chat.completions.create(
+            model="openai/gpt-oss-120b",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
         )
 
         return completion.choices[0].message.content
