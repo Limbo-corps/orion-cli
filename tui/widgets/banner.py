@@ -28,7 +28,8 @@ class BannerWidget(Static):
     def on_resize(self) -> None:
         self.render_header()
 
-    def render_header(self) -> None:
+    def header_text(self, width: int) -> Text:
+        """Build the slim header (wordmark + rule). Pure; easy to test."""
         head = Text.assemble(
             (f"{theme.ORION_ICON} ", theme.ORION_ACCENT),
             ("ORION", f"bold {theme.ORION_ACCENT}"),
@@ -36,7 +37,9 @@ class BannerWidget(Static):
             ("voice-native assistant", theme.MUTED),
         )
 
-        width = max(self.size.width, 24)
-        rule = Text("─" * width, style=theme.ORION_EDGE)
+        rule = Text("─" * max(width, 24), style=theme.ORION_EDGE)
 
-        self.update(Text.assemble(head, "\n", rule))
+        return Text.assemble(head, "\n", rule)
+
+    def render_header(self) -> None:
+        self.update(self.header_text(self.size.width))
