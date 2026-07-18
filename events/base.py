@@ -13,6 +13,7 @@ class EventStatus(str, Enum):
     INFO = "INFO"
     WARNING = "WARNING"
     ERROR = "ERROR"
+    SUCCESS = "SUCCESS"
 
 
 class Event(BaseModel):
@@ -21,7 +22,6 @@ class Event(BaseModel):
     """
 
     event_id: UUID = Field(default_factory=uuid4)
-    status: str = EventStatus.INFO
     correlation_id: UUID
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     source: str

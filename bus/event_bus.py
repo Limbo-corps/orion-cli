@@ -11,10 +11,12 @@ EventHandler = Callable[[Event], Awaitable[None]]
 
 
 class EventBus(metaclass=SingletonMeta):
-    def __init__(self, store: EventStore):
+    def __init__(self, store: EventStore | None = None):
         if hasattr(self, "_initialized"):
             return
 
+        if store is None:
+            raise RuntimeError("Event Bus must be initialized before use")
         self.store = store
 
         self.subscribers: dict[type[Event], list[EventHandler]] = defaultdict(list)
