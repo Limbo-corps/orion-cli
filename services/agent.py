@@ -10,6 +10,7 @@ from agent.nodes.remember import RememberNode
 from agent.nodes.retrieve import RetrieveNode
 from agent.state import OrionState
 from agent.tools import OrionTools
+from integrations._mcp.langchain_tools import load_mcp_tools
 from events.base import Event
 from events.events import (
     PipelineFailedEvent,
@@ -53,8 +54,11 @@ class AgentService(BaseService):
             planner=self.planner,
         )
 
+        self._mcp_tools: list = []
+
     async def startup(self) -> None:
         await self.memory.startup()
+        self._mcp_tools = await load_mcp_tools("mcp.json")
 
     async def shutdown(self) -> None:
         await self.memory.shutdown()
@@ -70,15 +74,16 @@ class AgentService(BaseService):
         )
 
         tools = OrionTools()
+        all_tools = [*tools.get_tools(), *self._mcp_tools]
 
         graph = OrionGraph(
             retrieve=RetrieveNode(session),
             agent=AgentNode(
                 llm=self.llm,
-                tools=tools.get_tools(),
+                tools=all_tools,
                 event_bus=self.bus,
             ),
-            tools=tools.get_tools(),
+            tools=all_tools,
             remember=RememberNode(session, self.llm),
         )
 
