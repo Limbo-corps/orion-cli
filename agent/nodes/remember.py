@@ -130,7 +130,7 @@ class RememberNode:
                         confidence=float(item.get("confidence", 1.0)),
                     )
                 )
-            except KeyError, TypeError, ValueError:
+            except (KeyError, TypeError, ValueError):
                 # Skip malformed facts.
                 continue
 

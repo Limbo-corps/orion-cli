@@ -35,21 +35,6 @@ class RetrievedEpisode:
 
 
 @dataclass(slots=True)
-class RetrievedContext:
-    """
-    Context retrieved for the current query before the agent reasons.
-    """
-
-    summary: SummaryMemory | None = None
-    # semantic memories
-    episodes: list[ConversationEpisode] = field(default_factory=list)
-    # graph
-    facts: list[Fact] = field(default_factory=list)
-    # recent chat history
-    recent_messages: list[ConversationEpisode] = field(default_factory=list)
-
-
-@dataclass(slots=True)
 class MemoryChunk:
     """
     A semantic chunk stored in vector memory
@@ -150,3 +135,17 @@ class MemoryContext:
     mode: str = "chat"
 
     tags: list[str] = field(default_factory=list)
+
+@dataclass(slots=True)
+class RetrievedContext:
+    """
+    Context retrieved for the current query before the agent reasons.
+    """
+
+    summary: SummaryMemory | None = None
+    # semantic memories
+    episodes: list[ConversationEpisode] = field(default_factory=list)
+    # graph
+    facts: list[Fact] = field(default_factory=list)
+    # recent chat history
+    recent_messages: list[ConversationEpisode] = field(default_factory=list)
