@@ -8,6 +8,7 @@ from integrations._mcp.config import MCPConfig
 from integrations._mcp.server import MCPServer
 from integrations._mcp.discovery import mcp_tools_to_openai
 
+
 class MCPManager:
     """
     Manages the lifecycle of all configured MCP servers and exposes their
@@ -40,7 +41,7 @@ class MCPManager:
                 continue
 
             self._servers[server.name] = server
-            
+
             result = await server.list_tools()
             for schema in mcp_tools_to_openai(result):
                 tool_name = schema["function"]["name"]
@@ -68,7 +69,6 @@ class MCPManager:
 
         return "\n".join(parts) if parts else "(no output)"
 
-
     async def shutdown(self) -> None:
         """
         Shuts down all configured MCP servers.
@@ -76,4 +76,4 @@ class MCPManager:
         for server in self._servers.values():
             await server.shutdown()
 
-        self._servers.clear() 
+        self._servers.clear()
