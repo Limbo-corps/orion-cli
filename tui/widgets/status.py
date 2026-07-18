@@ -2,6 +2,8 @@
 
 from textual.widgets import Static
 
+from tui import theme
+
 
 SPINNER = [
     "⠋",
@@ -18,15 +20,13 @@ SPINNER = [
 
 
 class StatusWidget(Static):
-    DEFAULT_CSS = """
-    StatusWidget {
-        height: 3;
-        background: #1a1b26;
-        border-top: heavy #565f89;
-        color: #c0caf5;
-        content-align: center middle;
-        text-style: bold;
-    }
+    DEFAULT_CSS = f"""
+    StatusWidget {{
+        height: 1;
+        background: transparent;
+        color: {theme.MUTED};
+        content-align: left middle;
+    }}
     """
 
     def __init__(
@@ -75,29 +75,25 @@ class StatusWidget(Static):
 
     def refresh_status(self) -> None:
 
-        spinner = SPINNER[self._frame % len(SPINNER)]
+        state_color = theme.STATE_COLORS.get(self.mode, theme.FG)
 
-        mic_color = "#f7768e" if self.mode == "RECORDING" else "#9ece6a"
+        if self.mode == "IDLE":
+            marker = "●"
+        else:
+            marker = SPINNER[self._frame % len(SPINNER)]
 
-        mode_color = {
-            "IDLE": "#9ece6a",
-            "RECORDING": "#f7768e",
-            "TRANSCRIBING": "#7dcfff",
-            "THINKING": "#bb9af7",
-            "SYNTHESIZING": "#e0af68",
-            "ERROR": "#f7768e",
-        }.get(
-            self.mode,
-            "#c0caf5",
-        )
+        sep = f"[{theme.DIM}]·[/]"
 
         self.update(
             (
-                f"[{mic_color}]󰍬 MIC[/]   │   "
-                f"[#9ece6a]󰕾 SPK[/]   │   "
-                f"[#7dcfff]󰚩 GROQ[/]   │   "
-                f"[{mode_color}]{spinner} {self.mode}[/]   │   "
-                f"[#bb9af7]{self.events} EVENTS[/]   │   "
-                f"[#565f89]CTRL+Q EXIT[/]"
+                f"[{state_color}]{marker} {self.mode.lower()}[/]"
+                f"   {sep}   "
+                f"[{theme.MUTED}]groq[/]"
+                f"   {sep}   "
+                f"[{theme.MUTED}]{self.events} events[/]"
+                f"   {sep}   "
+                f"[{theme.DIM}]q quit[/]"
+                f"   {sep}   "
+                f"[{theme.DIM}]c clear[/]"
             )
         )
