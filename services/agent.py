@@ -1,72 +1,116 @@
-# services/agent_service.py
+from __future__ import annotations
 
-import os
+from dotenv import load_dotenv
+from langchain_core.messages import HumanMessage
+from langchain_groq import ChatGroq
 
-from groq import Groq
-
-from services.base import BaseService
-
+from agent.graph import OrionGraph
+from agent.nodes.agent import AgentNode
+from agent.nodes.remember import RememberNode
+from agent.nodes.retrieve import RetrieveNode
+from agent.state import OrionState
+from agent.tools import OrionTools
 from events.base import Event
 from events.events import (
-    TranscriptGeneratedEvent,
-    ResponseGeneratedEvent,
     PipelineFailedEvent,
+    ResponseGeneratedEvent,
+    TranscriptGeneratedEvent,
 )
+from memory.config import MemoryConfig
+from memory.models import RetrievedContext
+from memory.module import MemoryModule
+from memory.planner.planner import RetrievalPlanner
+from services.base import BaseService
+
+load_dotenv()
 
 
 class AgentService(BaseService):
+    """
+    ORION agent service.
+    """
+
     service_name = "agent"
 
     subscribed_events = [
         TranscriptGeneratedEvent,
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
 
-        self.client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        self.llm = ChatGroq(
+            model="openai/gpt-oss-120b",
+            temperature=0,
+        )
 
-    async def handle(self, event: Event) -> None:
+        self.planner = RetrievalPlanner(
+            llm=self.llm,
+        )
+
+        self.memory = MemoryModule(
+            config=MemoryConfig(),
+            planner=self.planner,
+        )
+
+    async def startup(self) -> None:
+        await self.memory.startup()
+
+    async def shutdown(self) -> None:
+        await self.memory.shutdown()
+
+    async def handle(
+        self,
+        event: Event,
+    ) -> None:
+        assert isinstance(event, TranscriptGeneratedEvent)
+
+        session = self.memory.session(
+            correlation_id=event.correlation_id,
+        )
+
+        tools = OrionTools()
+
+        graph = OrionGraph(
+            retrieve=RetrieveNode(session),
+            agent=AgentNode(
+                llm=self.llm,
+                tools=tools.get_tools(),
+                event_bus=self.bus,
+            ),
+            tools=tools.get_tools(),
+            remember=RememberNode(session, self.llm),
+        )
+
+        initial_state: OrionState = {
+            "correlation_id": event.correlation_id,
+            "messages": [
+                HumanMessage(content=event.text),
+            ],
+            "context": RetrievedContext(),
+        }
+
         try:
-            assert isinstance(
-                event,
-                TranscriptGeneratedEvent,
-            )
+            result = await graph.ainvoke(initial_state)
 
-            response = await self.generate_response(event.text)
+            response = result["messages"][-1]
+            assert isinstance(response.content, str)
 
             await self.publish(
                 ResponseGeneratedEvent(
                     correlation_id=event.correlation_id,
                     source=self.service_name,
-                    message="Response generated",
-                    text=response,
+                    message="Response generated.",
+                    text=response.content,
                 )
             )
 
-        except Exception as e:
+        except Exception as exc:
             await self.publish(
                 PipelineFailedEvent(
                     correlation_id=event.correlation_id,
                     source=self.service_name,
-                    message="Agent processing failed",
-                    error=str(e),
+                    message="Agent processing failed.",
+                    error=str(exc),
                 )
             )
-
-    async def generate_response(
-        self,
-        prompt: str,
-    ) -> str:
-
-        completion = self.client.chat.completions.create(
-            model="openai/gpt-oss-120b",
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-        )
-
-        return completion.choices[0].message.content
