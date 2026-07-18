@@ -28,11 +28,13 @@ class VoiceRecordingService(BaseService):
 
     def __init__(self):
         super().__init__()
-        self.silence_threshold = float(os.getenv("ORION_SILENCE_THRESHOLD", "500"))
+        # Stricter defaults so ambient noise / short blips don't trip the
+        # recorder and feed the transcriber (and then the LLM) with junk.
+        self.silence_threshold = float(os.getenv("ORION_SILENCE_THRESHOLD", "650"))
         self.hangover_seconds = float(os.getenv("ORION_SILENCE_HANGOVER", "2.0"))
         self.max_duration = float(os.getenv("ORION_MAX_RECORD_SECONDS", "15"))
         self.listen_timeout = float(os.getenv("ORION_LISTEN_TIMEOUT", "2.0"))
-        self.min_speech_seconds = float(os.getenv("ORION_MIN_SPEECH_SECONDS", "0.4"))
+        self.min_speech_seconds = float(os.getenv("ORION_MIN_SPEECH_SECONDS", "0.8"))
         self.pre_roll_seconds = float(os.getenv("ORION_PRE_ROLL_SECONDS", "0.3"))
 
     async def handle(
