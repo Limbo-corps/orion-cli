@@ -136,6 +136,7 @@ class MemoryContext:
 
     tags: list[str] = field(default_factory=list)
 
+
 @dataclass(slots=True)
 class RetrievedContext:
     """
