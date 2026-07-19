@@ -3,6 +3,7 @@
 from textual.app import App
 from textual.containers import Horizontal
 
+from tui import theme
 from tui.widgets.banner import BannerWidget
 from tui.widgets.conversation import ConversationWidget
 from tui.widgets.events import EventStreamWidget
@@ -12,38 +13,35 @@ from tui.widgets.status import StatusWidget
 class OrionApp(App):
     instance: "OrionApp | None" = None
 
-    CSS = """
-    Screen {
-        background: #16161e;
-        color: #c0caf5;
-        padding: 1;
-    }
+    CSS = f"""
+    Screen {{
+        background: {theme.BG};
+        color: {theme.FG};
+        padding: 1 2;
+    }}
 
-    #banner {
-        height: 16;
-        border: round #7aa2f7;
+    #banner {{
+        height: 2;
         margin-bottom: 1;
-    }
+    }}
 
-    #content {
+    #content {{
         height: 1fr;
-    }
+    }}
 
-    #conversation {
+    #conversation {{
         width: 2fr;
-        border: round #9ece6a;
-        margin-right: 1;
-    }
+        margin-right: 2;
+    }}
 
-    #events {
+    #events {{
         width: 1fr;
-        border: round #e0af68;
-    }
+    }}
 
-    #status {
-        height: 3;
+    #status {{
+        height: 1;
         margin-top: 1;
-    }
+    }}
     """
 
     BINDINGS = [

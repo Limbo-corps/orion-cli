@@ -1,10 +1,11 @@
 from tui.widgets.banner import BannerWidget
 
 
-def test_banner_image_converts_to_terminal_art():
+def test_banner_renders_orion_wordmark():
     widget = BannerWidget()
 
-    art = widget.image_to_terminal("assets/ORION.png", width=20)
+    header = widget.header_text(width=40)
+    plain = header.plain
 
-    assert art.strip() != ""
-    assert "\n" in art
+    assert "ORION" in plain
+    assert "\n" in plain

@@ -8,6 +8,7 @@ from mcp import ClientSession
 from mcp.client.stdio import (
     StdioServerParameters,
     stdio_client,
+    get_default_environment,
 )
 
 from integrations._mcp.config import MCPServerConfig
@@ -44,7 +45,7 @@ class MCPServer:
         params = StdioServerParameters(
             command=self.config.command,
             args=self.config.args,
-            env=self.config.env,
+            env={**get_default_environment(), **self.config.env},
         )
 
         read_stream, write_stream = await self._stack.enter_async_context(

@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/home/mayu/Documents/Projects/orion-cli"
+      ],
+      "enabled": true,
+      "tools": [
+        "read_text_file",
+        "list_directory",
+        "search_files",
+        "write_file"
+      ]
+    }
+  }
+}

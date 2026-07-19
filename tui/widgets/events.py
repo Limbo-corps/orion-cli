@@ -8,28 +8,33 @@ from rich.text import Text
 from textual.containers import ScrollableContainer
 from textual.widgets import Static
 
+from tui import theme
+
 
 class EventContent(Static):
     pass
 
 
 class EventStreamWidget(ScrollableContainer):
-    DEFAULT_CSS = """
-    EventStreamWidget {
-        border: round #e0af68;
-        background: #1a1b26;
+    DEFAULT_CSS = f"""
+    EventStreamWidget {{
+        border: round {theme.BORDER};
+        border-title-color: {theme.MUTED};
+        border-title-align: left;
+        background: {theme.PANEL};
 
         overflow-y: auto;
         overflow-x: hidden;
 
-        scrollbar-background: #16161e;
-        scrollbar-color: #e0af68;
-    }
+        scrollbar-background: {theme.PANEL};
+        scrollbar-color: {theme.DIM};
+        scrollbar-size-vertical: 1;
+    }}
 
-    #event-content {
+    #event-content {{
         width: 100%;
-        padding: 0 1;
-    }
+        padding: 1 2;
+    }}
     """
 
     ICONS = {
@@ -49,21 +54,23 @@ class EventStreamWidget(ScrollableContainer):
         "AudioPlaybackFailedEvent": "✕",
     }
 
+    # Mono palette: greyscale by default, muted red for failures,
+    # muted green for completions, soft slate for "start" markers.
     COLORS = {
-        "PipelineStartEvent": "#7aa2f7",
-        "PipelineCompleteEvent": "#9ece6a",
-        "PipelineFailedEvent": "#f7768e",
-        "VoiceRecordingStartEvent": "#e0af68",
-        "VoiceRecordingCompletedEvent": "#9ece6a",
-        "VoiceRecordingFailedEvent": "#f7768e",
-        "TranscriptGeneratedEvent": "#7dcfff",
-        "TranscriptGenerationFailedEvent": "#f7768e",
-        "AgentProcessingStartEvent": "#bb9af7",
-        "ResponseGeneratedEvent": "#9ece6a",
-        "SpeechSynthesisStartEvent": "#e0af68",
-        "SpeechGeneratedEvent": "#9ece6a",
-        "SpeechGenerationFailedEvent": "#f7768e",
-        "AudioPlaybackFailedEvent": "#f7768e",
+        "PipelineStartEvent": theme.ORION_ACCENT,
+        "PipelineCompleteEvent": theme.OK,
+        "PipelineFailedEvent": theme.DANGER,
+        "VoiceRecordingStartEvent": theme.ORION_ACCENT,
+        "VoiceRecordingCompletedEvent": theme.MUTED,
+        "VoiceRecordingFailedEvent": theme.DANGER,
+        "TranscriptGeneratedEvent": theme.FG,
+        "TranscriptGenerationFailedEvent": theme.DANGER,
+        "AgentProcessingStartEvent": theme.ORION_ACCENT,
+        "ResponseGeneratedEvent": theme.FG,
+        "SpeechSynthesisStartEvent": theme.MUTED,
+        "SpeechGeneratedEvent": theme.OK,
+        "SpeechGenerationFailedEvent": theme.DANGER,
+        "AudioPlaybackFailedEvent": theme.DANGER,
     }
 
     def __init__(
@@ -89,7 +96,7 @@ class EventStreamWidget(ScrollableContainer):
         yield self.content
 
     def on_mount(self) -> None:
-        self.border_title = " LIVE EVENTS "
+        self.border_title = " live events "
 
     def add_event(
         self,
@@ -101,24 +108,23 @@ class EventStreamWidget(ScrollableContainer):
 
         icon = self.ICONS.get(
             event_name,
-            "•",
+            "·",
         )
 
         color = self.COLORS.get(
             event_name,
-            "#c0caf5",
+            theme.MUTED,
         )
 
         line = Text()
 
         line.append(
             timestamp,
-            style="#565f89",
+            style=theme.DIM,
         )
 
         line.append(
-            " │ ",
-            style="#414868",
+            "  ",
         )
 
         line.append(
@@ -126,11 +132,11 @@ class EventStreamWidget(ScrollableContainer):
             style=color,
         )
 
-        line.append(" ")
+        line.append("  ")
 
         line.append(
             message,
-            style="#c0caf5",
+            style=theme.MUTED,
         )
 
         self._events.append(line)
