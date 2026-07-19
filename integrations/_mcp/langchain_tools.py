@@ -3,10 +3,46 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from langchain_core.tools import BaseTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+
+
+def _project_root() -> Path:
+    """
+    Determine the ORION project root deterministically, independent of the
+    current working directory: walk up from this file until a project marker
+    (pyproject.toml or .git) is found. Falls back to the cwd.
+    """
+    here = Path(__file__).resolve()
+    for parent in (here, *here.parents):
+        if (parent / "pyproject.toml").exists() or (parent / ".git").exists():
+            return parent
+    return Path.cwd()
+
+
+def _resolve(value: str) -> str:
+    """
+    Expand config placeholders so paths are never hardcoded to one machine:
+
+    - ``${PROJECT_ROOT}`` -> the ORION project root, found from the code's own
+      location (correct no matter which directory you launch from).
+    - ``${CWD}`` / ``${PWD}`` -> the current working directory.
+    - ``$VAR`` / ``${VAR}``   -> the matching environment variable.
+
+    This lets `mcp.json` ship a portable value that resolves to whatever
+    machine and directory the product actually runs in.
+    """
+    root = str(_project_root())
+    cwd = str(Path.cwd())
+    value = (
+        value.replace("${PROJECT_ROOT}", root)
+        .replace("${CWD}", cwd)
+        .replace("${PWD}", cwd)
+    )
+    return os.path.expandvars(value)
 
 
 async def load_mcp_tools(config_path: str | Path = "mcp.json") -> list[BaseTool]:
@@ -20,13 +56,17 @@ async def load_mcp_tools(config_path: str | Path = "mcp.json") -> list[BaseTool]
           "mcpServers": {
             "<name>": {
               "command": "npx",
-              "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path"],
+              "args": ["-y", "@modelcontextprotocol/server-filesystem", "${CWD}"],
               "env": {"KEY": "value"},
               "enabled": true,
               "tools": ["read_text_file", "list_directory"]
             }
           }
         }
+
+    Placeholders in "args" (``${CWD}`` / ``${PWD}`` / ``$VAR``) are expanded at
+    runtime, so paths adapt to the machine ORION runs on instead of being
+    hardcoded.
 
     The optional per-server "tools" allowlist keeps only the named tools.
     Every tool schema is sent to the LLM on *every* call, so exposing only
@@ -51,7 +91,7 @@ async def load_mcp_tools(config_path: str | Path = "mcp.json") -> list[BaseTool]
 
         connection: dict = {
             "command": spec["command"],
-            "args": spec.get("args", []),
+            "args": [_resolve(str(arg)) for arg in spec.get("args", [])],
             "transport": "stdio",
         }
 

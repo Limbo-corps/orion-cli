@@ -5,14 +5,18 @@
       "args": [
         "-y",
         "@modelcontextprotocol/server-filesystem",
-        "/home/mayu/Documents/Projects/orion-cli"
+        "${PROJECT_ROOT}"
       ],
       "enabled": true,
       "tools": [
         "read_text_file",
         "list_directory",
+        "directory_tree",
         "search_files",
-        "write_file"
+        "write_file",
+        "edit_file",
+        "move_file",
+        "create_directory"
       ]
     }
   }
