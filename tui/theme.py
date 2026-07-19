@@ -20,7 +20,10 @@ ORION_ICON = "◉"  # arc-reactor glyph beside the name
 USER_ACCENT = "#b9a7ff"  # user name
 USER_EDGE = "#7c5cff"  # user bubble border
 USER_BUBBLE = "#141327"  # user bubble fill (very dark violet tint)
-USER_NAME = "Mayuri"  # shown on the user's messages (change to taste)
+# The user's messages are always labelled "Me" in the UI, regardless of
+# their actual name. ORION still learns and uses the real name in
+# conversation (via memory) — it just isn't shown as the bubble label.
+USER_NAME = "Me"
 
 # --- Status states ---
 DANGER = "#e0736f"  # errors (muted red)
