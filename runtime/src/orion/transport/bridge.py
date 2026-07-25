@@ -1,27 +1,28 @@
 """
 IPC bridge.
 
-The bridge connects the transport layer to Orion's internal event system.
+The bridge translates between the IPC transport protocol and Orion's
+internal event system.
 
-Incoming protocol messages are translated into domain events and
-published to the EventBus.
+Incoming protocol messages are converted into domain events and published
+to the EventBus.
 
-Outgoing domain events are translated into protocol messages and sent
-back to the appropriate client session.
+Outgoing protocol messages are routed to the appropriate connected client.
 """
 
 from __future__ import annotations
+
 from uuid import UUID
 
 from orion.bus.event_bus import EventBus
 from orion.events.events import ChatPipelineStartEvent
-
-from .messages import (
+from orion.transport.messages import (
     Envelope,
     MessageType,
+    PongPayload,
     SubmitPromptPayload,
 )
-from .session import ClientSession
+from orion.transport.session import ClientSession
 
 
 class IPCBridge:
@@ -29,61 +30,66 @@ class IPCBridge:
     Bridges IPC protocol messages and Orion domain events.
     """
 
-    def __init__(
-        self,
-        event_bus: EventBus,
-    ) -> None:
-        """
-        Initialise the IPC bridge.
-
-        Args:
-            event_bus:
-                Orion's event bus.
-        """
+    def __init__(self, event_bus: EventBus) -> None:
         self._event_bus = event_bus
-        self._session: dict[UUID, ClientSession] = {}
+        self._sessions: dict[UUID, ClientSession] = {}
+
+    # ------------------------------------------------------------------
+    # Session Management
+    # ------------------------------------------------------------------
 
     def register_session(self, session: ClientSession) -> None:
-        """
-        Register a new client session.
-
-        Args:
-            session:
-                Client session to register.
-        """
-        self._session[session.id] = session
+        """Register a connected client."""
+        self._sessions[session.id] = session
 
     def unregister_session(self, session: ClientSession) -> None:
-        """
-        Deregister a client session.
+        """Remove a disconnected client."""
+        self._sessions.pop(session.id, None)
 
-        Args:
-            session:
-                Client session to deregister.
+    async def send(
+        self,
+        session_id: UUID,
+        envelope: Envelope,
+    ) -> None:
         """
-        self._session.pop(session.id, None)
+        Send an IPC message to a connected client.
+        """
+        session = self._sessions.get(session_id)
+
+        if session is None:
+            return
+
+        await session.send(envelope)
+
+    async def broadcast(
+        self,
+        envelope: Envelope,
+    ) -> None:
+        """
+        Broadcast an IPC message to every connected client.
+        """
+        for session in self._sessions.values():
+            await session.send(envelope)
+
+    # ------------------------------------------------------------------
+    # Incoming Messages
+    # ------------------------------------------------------------------
 
     async def handle(
         self,
         session: ClientSession,
-        message: Envelope,
+        envelope: Envelope,
     ) -> None:
         """
-        Handle one incoming protocol message.
-
-        Args:
-            session:
-                Client that sent the message.
-
-            message:
-                Incoming protocol message.
+        Handle one incoming IPC message.
         """
-        match message.type:
+
+        match envelope.type:
             case MessageType.PING:
-                await self._handle_ping(session)
+                await self._handle_ping(session, envelope)
 
             case MessageType.SUBMIT_PROMPT:
-                await self._handle_prompt(session, message)
+                await self._handle_submit_prompt(session, envelope)
 
             case MessageType.VOICE_START:
                 ...
@@ -95,63 +101,61 @@ class IPCBridge:
                 ...
 
             case _:
-                raise ValueError(f"Unsupported message: {message.type}")
+                raise ValueError(f"Unsupported IPC message: {envelope.type}")
 
     async def _handle_ping(
         self,
         session: ClientSession,
+        envelope: Envelope,
     ) -> None:
         """
         Respond to a ping request.
         """
-        ...
-
-    async def _handle_prompt(
-        self,
-        session: ClientSession,
-        message: Envelope,
-    ) -> None:
-        """
-        Handle a prompt submission from a client.
-
-        The incoming protocol message is translated into a
-        ChatPipelineStartEvent and published to the EventBus.
-        """
-        payload = SubmitPromptPayload.model_validate(message.payload)
-
-        event = ChatPipelineStartEvent(
-            correlation_id=message.correlation_id,
-            session_id=session.id,
-            source="ipc",
-            message="Prompt submitted via IPC.",
-            text=payload.text,
-        )
-
-        await self._event_bus.publish(event)
 
         await session.send(
             Envelope(
-                correlation_id=message.correlation_id,
-                type=MessageType.STATUS,
-                payload={
-                    "message": "Prompt accepted.",
-                },
+                correlation_id=envelope.correlation_id,
+                type=MessageType.PONG,
+                payload=PongPayload().model_dump(),
             )
         )
 
+    async def _handle_submit_prompt(
+        self,
+        session: ClientSession,
+        envelope: Envelope,
+    ) -> None:
+        """
+        Translate a prompt submission into a domain event.
+        """
+
+        payload = SubmitPromptPayload.model_validate(envelope.payload)
+
+        await self._event_bus.publish(
+            ChatPipelineStartEvent(
+                correlation_id=envelope.correlation_id,
+                session_id=session.id,
+                source="ipc",
+                message="Prompt submitted via IPC.",
+                text=payload.text,
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # Session Lifecycle
+    # ------------------------------------------------------------------
+
     async def serve(self, session: ClientSession) -> None:
-        print(f"[IPC] Client connected: {session.id}")
+        """
+        Process messages from a connected client until it disconnects.
+        """
 
         self.register_session(session)
 
         try:
             while True:
-                print("[IPC] Waiting for message...")
-                message = await session.receive()
-                print(f"[IPC] Received: {message.type}")
-
-                await self.handle(session, message)
+                envelope = await session.receive()
+                await self.handle(session, envelope)
 
         finally:
-            print(f"[IPC] Client disconnected: {session.id}")
             self.unregister_session(session)

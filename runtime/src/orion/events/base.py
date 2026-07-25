@@ -4,6 +4,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Field
 
+from orion.transport.messages import MessageType
+
 
 # ============================================================
 # Event Status
@@ -48,6 +50,9 @@ class Event(BaseModel):
 
     #: Human-readable description of the event.
     message: str = ""
+
+    #: Message type
+    type: MessageType | None = None
 
     #: Severity of the event.
     status: EventStatus = EventStatus.INFO
