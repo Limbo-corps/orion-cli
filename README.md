@@ -135,18 +135,23 @@ This is the direction the project is heading:
 
 ```text
 orion/
-├── cli/            # Typer CLI commands
-├── bus/            # Event bus and subscription helpers
-├── core/           # Shared utilities such as the singleton metaclass
-├── events/         # Event models and registry
-├── orchestrator/   # Runtime bootstrapping and pipeline entrypoint
-├── services/       # Recording, STT, agent, TTS, playback, logging, TUI
-├── store/          # SQLite event persistence
-├── tui/            # Textual application and widgets
-├── tests/          # Small behavior and smoke tests
-├── assets/         # Logo and visual assets
-├── main.py         # Local bootstrap/debug runner
-└── pyproject.toml  # Project metadata and dependencies
+├── src/orion/       # Installable application package
+│   ├── __main__.py  # Package entrypoint
+│   ├── agent/       # Memory-aware agent graph and prompts
+│   ├── bus/         # Event bus and subscription helpers
+│   ├── cli/         # Typer CLI commands
+│   ├── core/        # Shared utilities such as the singleton metaclass
+│   ├── events/      # Event models and registry
+│   ├── integrations/# External integrations such as MCP
+│   ├── memory/      # Memory providers, planning, and persistence
+│   ├── orchestrator/# Runtime bootstrapping and pipeline entrypoint
+│   ├── services/    # Recording, STT, agent, TTS, playback, logging, TUI
+│   ├── store/       # SQLite event persistence
+│   └── tui/         # Textual application and widgets
+├── tests/           # Small behavior and smoke tests
+├── assets/          # Logo and visual assets
+├── data/            # Local runtime artifacts
+└── pyproject.toml   # Project metadata and dependencies
 ```
 
 ## How It Works
@@ -219,7 +224,7 @@ uv run orion chat
 uv run orion doctor
 ```
 
-If you want to inspect the runtime directly, `main.py` is also present as a local bootstrap script.
+If you want to inspect the runtime directly, `python -m orion` will launch the package entrypoint.
 
 ## Tests
 

@@ -33,11 +33,24 @@ dependencies = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["cli", "tui"]
+packages = ["src/orion"]
 
 [project.scripts]
-orion = "cli.app:app"
+orion = "orion.cli.app:app"
+
+[tool.pyright]
+extraPaths = ["src"]
+typeCheckingMode = "basic"
+
+reportUnusedCallResult = "none"
+reportMissingTypeStubs = "none"
+reportImplicitOverride = "none"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest-asyncio>=1.4.0",
+]
