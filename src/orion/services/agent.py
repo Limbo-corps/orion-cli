@@ -22,7 +22,6 @@ from orion.events.events import (
     ResponseStartedEvent,
 )
 from orion.integrations._mcp.langchain_tools import load_mcp_tools
-from orion.memory.config import MemoryConfig
 from orion.memory.models import RetrievedContext
 from orion.memory.module import MemoryModule
 from orion.memory.planner.planner import RetrievalPlanner

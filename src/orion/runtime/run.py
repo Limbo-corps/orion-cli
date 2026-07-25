@@ -7,8 +7,6 @@ starts the application, and performs graceful shutdown.
 
 from __future__ import annotations
 
-import asyncio
-from telnetlib import IP
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq

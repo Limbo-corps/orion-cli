@@ -6,7 +6,6 @@ import aiosqlite
 
 from orion.events.base import Event
 from orion.events.registry import EventRegistry
-from orion.runtime.lifecycle import Lifecycle
 from orion.store.base import EventStore
 
 

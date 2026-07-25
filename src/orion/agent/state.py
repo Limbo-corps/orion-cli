@@ -9,6 +9,7 @@ from typing_extensions import TypedDict
 
 from orion.memory.models import RetrievedContext
 
+
 class OrionState(TypedDict):
     """
     Shared state passed between LangGraph nodes.

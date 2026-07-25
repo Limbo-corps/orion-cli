@@ -114,4 +114,3 @@ def test_pong_payload() -> None:
     payload = PongPayload()
 
     assert payload.model_dump() == {}
-

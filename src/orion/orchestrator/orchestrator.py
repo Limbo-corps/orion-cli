@@ -5,6 +5,7 @@ from orion.services.logging import LoggingService
 from orion.services.setup import ServiceContext, setup_services
 from orion.runtime.lifecycle import Lifecycle
 
+
 class Orchestrator(Lifecycle):
     """
     Coordinates the ORION runtime.
