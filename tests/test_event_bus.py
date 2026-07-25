@@ -1,39 +1,53 @@
-import asyncio
+import pytest
 from uuid import uuid4
 
-import events  # noqa: F401 - import registers event types
-from bus.event_bus import EventBus
-from events import TranscriptGeneratedEvent
+from orion.bus.event_bus import EventBus
+from orion.events.base import Event
+from orion.events.events import TranscriptGeneratedEvent
+from orion.store.base import EventStore
 
 
-class FakeStore:
+class FakeStore(EventStore):
     def __init__(self) -> None:
-        self.events = []
+        self.events: list[Event] = []
 
-    async def append(self, event) -> None:
+    async def startup(self) -> None:
+        pass
+
+    async def shutdown(self) -> None:
+        pass
+
+    async def append(self, event: Event) -> None:
         self.events.append(event)
 
+    async def load_all(self) -> list[Event]:
+        return list(self.events)
 
-def test_event_bus_publishes_to_handlers_and_persists():
-    async def scenario():
-        store = FakeStore()
-        bus = EventBus(store)
-        received: list[str] = []
 
-        async def handler(event: TranscriptGeneratedEvent) -> None:
-            received.append(event.text)
+@pytest.mark.asyncio
+async def test_event_bus_publishes_to_handlers_and_persists() -> None:
+    store = FakeStore()
+    await store.startup()
 
-        bus.subscribe(TranscriptGeneratedEvent, handler)
+    bus = EventBus(store)
+    received: list[str] = []
 
-        event = TranscriptGeneratedEvent(
-            correlation_id=uuid4(),
-            source="stt",
-            text="Hello ORION",
-        )
+    async def handler(event: Event) -> None:
+        assert isinstance(event, TranscriptGeneratedEvent)
+        received.append(event.text)
 
-        await bus.publish(event)
+    bus.subscribe(TranscriptGeneratedEvent, handler)
 
-        assert received == ["Hello ORION"]
-        assert store.events == [event]
+    event = TranscriptGeneratedEvent(
+        session_id=uuid4(),
+        correlation_id=uuid4(),
+        source="stt",
+        text="Hello ORION",
+    )
 
-    asyncio.run(scenario())
+    await bus.publish(event)
+
+    assert received == ["Hello ORION"]
+    assert store.events == [event]
+
+    await store.shutdown()

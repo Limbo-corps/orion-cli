@@ -1,103 +1,121 @@
+from __future__ import annotations
+
 import asyncio
 import json
-import shutil
 from pathlib import Path
 from uuid import uuid4
 
-from bus.event_bus import EventBus
-from events.speech import TranscriptGenerated
-from events.events import PipelineStartEvent
-from services.logging import LoggingService
-from store.sqlite_store import SQLiteEventStore
+import pytest
+
+from orion.bus.event_bus import EventBus
+from orion.events.events import PipelineStartEvent
+from orion.events.speech import TranscriptGenerated
+from orion.services.logging import LoggingService
+from orion.store.sqlite_store import SQLiteEventStore
 
 
-async def main() -> None:
+@pytest.mark.asyncio
+async def test_logging_service_persists_events(tmp_path: Path) -> None:
+    log_dir = tmp_path / "logs"
+    log_file = log_dir / "orion.log"
+    db_file = tmp_path / "orion.db"
 
-    test_run_id = uuid4().hex[:8]
-    test_log_dir = Path(f"test_logs_{test_run_id}")
-    test_log_file = test_log_dir / "orion_test.log"
-    test_db_file = Path(f"test_logging_{test_run_id}.db")
+    store = SQLiteEventStore(str(db_file))
+    await store.startup()
 
-    print("Init test db and event bus ...")
-    store = SQLiteEventStore(str(test_db_file))
-    await store.initialize()
     bus = EventBus(store)
 
-    print("Starting LoggingService in test mode...")
     logging_service = LoggingService(
-        log_dir=test_log_dir,
-        log_file=test_log_file,
+        log_dir=log_dir,
+        log_file=log_file,
     )
-    await logging_service.startup()
 
     bus.subscribe_all(logging_service.handle)
 
+    await logging_service.startup()
+
     correlation_id = uuid4()
 
-    print("Publish pipeline start event...")
-    event_start = PipelineStartEvent(
-        correlation_id=correlation_id,
-        source="test_runner",
-        message="Logging test pipeline start",
-    )
-    await bus.publish(event_start)
-    print("Publishing   TranscriptGenerated...")
-    event_trans = TranscriptGenerated(
-        correlation_id=correlation_id,
-        source="stt_test",
-        text="Hello Orion, verifying disk logging system.",
-    )
-    await bus.publish(event_trans)
+    try:
+        await bus.publish(
+            PipelineStartEvent(
+                session_id=uuid4(),
+                correlation_id=correlation_id,
+                source="test_runner",
+                message="Logging test pipeline start",
+            )
+        )
 
-    # Allow a short delay for background thread disk writes to complete
-    await asyncio.sleep(0.5)
+        await bus.publish(
+            TranscriptGenerated(
+                session_id=uuid4(),
+                correlation_id=correlation_id,
+                source="stt_test",
+                text="Hello Orion, verifying disk logging system.",
+            )
+        )
 
-    print("\n--- Verifying Logs on Disk ---")
-    if not test_log_file.exists():
-        print("❌ Test Failed: Log file was not created!")
-        return
+        # Give the logger a moment to flush.
+        await asyncio.sleep(0.5)
 
-    with open(test_log_file, "r", encoding="utf-8") as f:
-        log_lines = f.readlines()
+        assert log_file.exists()
 
-    if len(log_lines) != 2:
-        print(f"❌ Test Failed: Expected 2 log lines, but got {len(log_lines)}")
-        return
+        records = [
+            json.loads(line)
+            for line in log_file.read_text(encoding="utf-8").splitlines()
+        ]
 
-    # Check properties of PipelineStartEvent
-    log_entry_1 = json.loads(log_lines[0].strip())
-    print(f"Log Line 1: {log_entry_1}")
-    assert log_entry_1["event_type"] == "PipelineStartEvent"
-    assert log_entry_1["source"] == "test_runner"
-    assert log_entry_1["message"] == "Logging test pipeline start"
-    assert (
-        "status" not in log_entry_1
-    )  # 'status' is base metadata, not expected at top level or payload
-    print("✓ PipelineStartEvent fields verified.")
+        # Ignore lifecycle messages emitted by LoggingService itself.
+        events = [record for record in records if "event_type" in record]
 
-    # Check properties of TranscriptGenerated
-    log_entry_2 = json.loads(log_lines[1].strip())
-    print(f"Log Line 2: {log_entry_2}")
-    assert log_entry_2["event_type"] == "TranscriptGenerated"
-    assert log_entry_2["source"] == "stt_test"
-    assert (
-        log_entry_2["payload"]["text"] == "Hello Orion, verifying disk logging system."
-    )
-    print("✓ TranscriptGenerated fields & payload verified.")
+        assert len(events) == 2
 
-    print("\n✅ All tests passed successfully!")
+        pipeline, transcript = events
 
-    # Cleanup and Shutdown
-    await logging_service.shutdown()
-    await store.close()
+        # ------------------------------------------------------------------
+        # PipelineStartEvent
+        # ------------------------------------------------------------------
 
-    if test_log_dir.exists():
-        shutil.rmtree(test_log_dir)
-        print("Cleaned up test log directory.")
-    if test_db_file.exists():
-        test_db_file.unlink()
-        print("Cleaned up test database file.")
+        assert pipeline["event_type"] == "PipelineStartEvent"
+        assert pipeline["correlation_id"] == str(correlation_id)
+        assert pipeline["source"] == "test_runner"
+        assert pipeline["message"] == "Logging test pipeline start"
 
+        assert "timestamp" in pipeline
+        assert "event_id" in pipeline
+        assert "status" in pipeline
 
-if __name__ == "__main__":
-    asyncio.run(main())
+        # All common metadata should be extracted from the payload.
+        assert pipeline["payload"]["session_id"]
+        assert "correlation_id" not in pipeline["payload"]
+        assert "source" not in pipeline["payload"]
+        assert "message" not in pipeline["payload"]
+        assert "status" not in pipeline["payload"]
+        assert "timestamp" not in pipeline["payload"]
+        assert "event_id" not in pipeline["payload"]
+
+        # ------------------------------------------------------------------
+        # TranscriptGenerated
+        # ------------------------------------------------------------------
+
+        assert transcript["event_type"] == "TranscriptGenerated"
+        assert transcript["correlation_id"] == str(correlation_id)
+        assert transcript["source"] == "stt_test"
+
+        assert "timestamp" in transcript
+        assert "event_id" in transcript
+        assert "status" in transcript
+
+        assert transcript["payload"]["text"] == (
+            "Hello Orion, verifying disk logging system."
+        )
+        assert transcript["payload"]["session_id"]
+        assert "correlation_id" not in transcript["payload"]
+        assert "source" not in transcript["payload"]
+        assert "status" not in transcript["payload"]
+        assert "timestamp" not in transcript["payload"]
+        assert "event_id" not in transcript["payload"]
+
+    finally:
+        await logging_service.shutdown()
+        await store.shutdown()
