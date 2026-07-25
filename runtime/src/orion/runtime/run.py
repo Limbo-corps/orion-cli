@@ -81,7 +81,7 @@ async def run() -> None:
     )
 
     bridge = IPCBridge(bus)
-    
+
     orchestrator = Orchestrator(
         bus=bus,
         config=OrchestratorConfig(
@@ -90,7 +90,6 @@ async def run() -> None:
             bridge=bridge,
         ),
     )
-
 
     server = IPCServer(
         socket_path="/tmp/orion.sock",
