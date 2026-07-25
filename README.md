@@ -133,25 +133,38 @@ This is the direction the project is heading:
 
 ## Repository Layout
 
+ORION is a monorepo with two independent applications that share a single
+Git repository and communicate over an IPC protocol:
+
+- **`runtime/`** — the Python AI runtime (daemon).
+- **`client/`** — the Rust (Ratatui) terminal client.
+
 ```text
 orion/
-├── src/orion/       # Installable application package
-│   ├── __main__.py  # Package entrypoint
-│   ├── agent/       # Memory-aware agent graph and prompts
-│   ├── bus/         # Event bus and subscription helpers
-│   ├── cli/         # Typer CLI commands
-│   ├── core/        # Shared utilities such as the singleton metaclass
-│   ├── events/      # Event models and registry
-│   ├── integrations/# External integrations such as MCP
-│   ├── memory/      # Memory providers, planning, and persistence
-│   ├── orchestrator/# Runtime bootstrapping and pipeline entrypoint
-│   ├── services/    # Recording, STT, agent, TTS, playback, logging, TUI
-│   ├── store/       # SQLite event persistence
-│   └── tui/         # Textual application and widgets
-├── tests/           # Small behavior and smoke tests
-├── assets/          # Logo and visual assets
-├── data/            # Local runtime artifacts
-└── pyproject.toml   # Project metadata and dependencies
+├── runtime/                  # Python AI runtime (daemon)
+│   ├── src/orion/            # Installable application package
+│   │   ├── __main__.py       # Package entrypoint
+│   │   ├── agent/            # Memory-aware agent graph and prompts
+│   │   ├── bus/              # Event bus and subscription helpers
+│   │   ├── cli/              # Typer CLI entrypoint
+│   │   ├── core/             # Shared utilities such as the singleton metaclass
+│   │   ├── events/           # Event models and registry
+│   │   ├── integrations/     # External integrations such as MCP
+│   │   ├── memory/           # Memory providers, planning, and persistence
+│   │   ├── orchestrator/     # Runtime bootstrapping and pipeline entrypoint
+│   │   ├── runtime/          # Runtime lifecycle and run loop
+│   │   ├── services/         # Recording, STT, agent, TTS, playback, logging
+│   │   ├── store/            # SQLite event persistence
+│   │   └── transport/        # IPC protocol and bridge to the client
+│   ├── tests/                # Behavior and smoke tests
+│   ├── pyproject.toml        # Runtime metadata and dependencies
+│   └── uv.lock
+├── client/                   # Rust (Ratatui) terminal client
+│   ├── Cargo.toml
+│   └── src/main.rs
+├── assets/                   # Logo and visual assets
+├── docker-compose.yml        # Qdrant + Neo4j backends for memory
+└── README.md
 ```
 
 ## How It Works
@@ -191,15 +204,18 @@ Each service is a small, focused unit:
 
 ## Installation
 
+The Python runtime lives in `runtime/`:
+
 ```bash
+cd runtime
 uv sync
 ```
 
-If you are not using `uv`, install the dependencies from `pyproject.toml` using your preferred Python tooling.
+If you are not using `uv`, install the dependencies from `runtime/pyproject.toml` using your preferred Python tooling.
 
 ## Configuration
 
-Create a `.env` file with your API key:
+Create a `.env` file inside `runtime/` with your API key:
 
 ```env
 GROQ_API_KEY=your_key_here
@@ -213,22 +229,30 @@ Optional local artifacts:
 
 ## Run
 
-```bash
-uv run orion voice
-```
-
-Other entrypoints:
+Start the memory backends (from the repo root), then run the runtime:
 
 ```bash
-uv run orion chat
-uv run orion doctor
+docker compose up -d          # Qdrant + Neo4j
+cd runtime
+uv run python -m orion        # or: uv run orion
 ```
 
-If you want to inspect the runtime directly, `python -m orion` will launch the package entrypoint.
+## Client (Rust)
+
+The terminal client lives in `client/` and is built with Cargo:
+
+```bash
+cd client
+cargo run
+```
+
+It is currently a minimal placeholder; the Ratatui UI and the IPC bridge to the
+runtime (see `runtime/src/orion/transport`) are upcoming.
 
 ## Tests
 
 ```bash
+cd runtime
 uv run pytest
 ```
 
@@ -237,6 +261,7 @@ uv run pytest
 Run the project checks locally before you push a pull request:
 
 ```bash
+cd runtime
 uv run pytest
 uv run ruff check .
 uv run ruff format --check .

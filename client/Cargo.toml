@@ -1,0 +1,7 @@
+[package]
+name = "orion-client"
+version = "0.1.0"
+edition = "2021"
+description = "ORION terminal client (Ratatui) — talks to the Python runtime over IPC."
+
+[dependencies]
