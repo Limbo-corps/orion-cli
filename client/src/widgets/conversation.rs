@@ -49,6 +49,7 @@ impl Message {
 #[derive(Default)]
 pub struct ConversationWidget {
     pub messages: Vec<Message>,
+    pub scroll_offset: usize,
 }
 
 impl ConversationWidget {
@@ -56,6 +57,7 @@ impl ConversationWidget {
     pub fn new() -> Self {
         Self {
             messages: Vec::new(),
+            scroll_offset: 0,
         }
     }
 
@@ -74,18 +76,36 @@ impl ConversationWidget {
                     "All systems operational. Listening for event triggers...".to_string(),
                 ),
             ],
+            scroll_offset: 0,
         }
+    }
+
+    /// Scroll up by N items
+    pub fn scroll_up(&mut self, lines: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_add(lines);
+    }
+
+    /// Scroll down by N items
+    pub fn scroll_down(&mut self, lines: usize) {
+        self.scroll_offset = self.scroll_offset.saturating_sub(lines);
+    }
+
+    /// Reset scroll to the most recent messages at the bottom
+    pub fn scroll_to_bottom(&mut self) {
+        self.scroll_offset = 0;
     }
 
     /// Public interface for adding a complete message
     pub fn add_message(&mut self, message: Message) {
         self.messages.push(message);
+        self.scroll_to_bottom();
     }
 
     /// Starts streaming a new assistant message
     pub fn begin_assistant_message(&mut self, id: String) {
         self.messages
             .push(Message::new(id, Author::Orion, String::new()));
+        self.scroll_to_bottom();
     }
 
     /// Appends incoming streamed chunk to the active assistant response bubble
@@ -93,6 +113,7 @@ impl ConversationWidget {
         if let Some(last_msg) = self.messages.last_mut() {
             if last_msg.author == Author::Orion {
                 last_msg.content.push_str(chunk);
+                self.scroll_to_bottom();
                 return;
             }
         }
@@ -101,6 +122,7 @@ impl ConversationWidget {
         let fallback_id = format!("msg-{}", self.messages.len() + 1);
         self.messages
             .push(Message::new(fallback_id, Author::Orion, chunk.to_string()));
+        self.scroll_to_bottom();
     }
 
     /// Called when streaming response terminates
@@ -110,9 +132,10 @@ impl ConversationWidget {
 
     pub fn clear(&mut self) {
         self.messages.clear();
+        self.scroll_offset = 0;
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
+    pub fn render(&mut self, frame: &mut Frame, area: Rect) {
         // Outer Panel Block
         let outer_block = Block::default()
             .title(" conversation ")
@@ -153,25 +176,36 @@ impl ConversationWidget {
             })
             .collect();
 
-        // Calculate auto-scroll window (bottom-up view)
         let total_height: u16 = message_heights.iter().sum();
         let available_height = inner_area.height;
 
+        // Clamp scroll offset to prevent scrolling past the top message boundary
+        let max_scroll = if total_height > available_height {
+            self.messages.len().saturating_sub(1)
+        } else {
+            0
+        };
+        self.scroll_offset = self.scroll_offset.min(max_scroll);
+
+        // Calculate bottom-up visible window including scroll offset
         let mut start_idx = 0;
+        let mut end_idx = self.messages.len().saturating_sub(self.scroll_offset);
         let mut accumulated_height = 0;
 
-        if total_height > available_height {
-            for (i, &h) in message_heights.iter().enumerate().rev() {
-                if accumulated_height + h > available_height {
-                    start_idx = i + 1;
-                    break;
-                }
-                accumulated_height += h;
+        for (i, &h) in message_heights[..end_idx].iter().enumerate().rev() {
+            if accumulated_height + h > available_height {
+                start_idx = i + 1;
+                break;
             }
+            accumulated_height += h;
         }
 
-        let visible_messages = &self.messages[start_idx..];
-        let visible_heights = &message_heights[start_idx..];
+        if start_idx > end_idx {
+            start_idx = end_idx;
+        }
+
+        let visible_messages = &self.messages[start_idx..end_idx];
+        let visible_heights = &message_heights[start_idx..end_idx];
 
         let constraints: Vec<Constraint> = visible_heights
             .iter()

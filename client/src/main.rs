@@ -73,11 +73,32 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             } else {
                                 match app.input_mode {
                                     InputMode::Normal => match key.code {
+                                        // Entering Insert Mode
                                         KeyCode::Char('i') | KeyCode::Char('a') => {
                                             app.input_mode = InputMode::Insert;
                                         }
+                                        // Quit
                                         KeyCode::Char('q') | KeyCode::Esc => {
                                             app.should_quit = true;
+                                        }
+                                        // Conversation Scrolling (Vim keys & standard navigation)
+                                        KeyCode::Up | KeyCode::Char('k') => {
+                                            app.conversation.scroll_up(1);
+                                        }
+                                        KeyCode::Down | KeyCode::Char('j') => {
+                                            app.conversation.scroll_down(1);
+                                        }
+                                        KeyCode::PageUp => {
+                                            app.conversation.scroll_up(5);
+                                        }
+                                        KeyCode::PageDown => {
+                                            app.conversation.scroll_down(5);
+                                        }
+                                        KeyCode::Home => {
+                                            app.conversation.scroll_up(usize::MAX);
+                                        }
+                                        KeyCode::End | KeyCode::Char('G') => {
+                                            app.conversation.scroll_to_bottom();
                                         }
                                         _ => {}
                                     },
@@ -88,11 +109,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                         KeyCode::Enter => {
                                             app.submit_prompt().await;
                                         }
+                                        KeyCode::Left => {
+                                            app.move_cursor_left();
+                                        }
+                                        KeyCode::Right => {
+                                            app.move_cursor_right();
+                                        }
                                         KeyCode::Backspace => {
-                                            app.input.pop();
+                                            app.delete_char();
                                         }
                                         KeyCode::Char(c) => {
-                                            app.input.push(c);
+                                            app.enter_char(c);
                                         }
                                         _ => {}
                                     },
@@ -110,10 +137,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
             // Receive IPC stream events from Orion Python Runtime
             runtime_event = async {
                 if let Some(client) = &mut app.client {
-                    // Wrap in Some() so this branch returns Option<Result<RuntimeEvent, IpcError>>
                     Some(client.next_event().await)
                 } else {
-                    // Returns Option<Result<RuntimeEvent, IpcError>>
                     tokio::time::sleep(Duration::from_secs(3600)).await;
                     None
                 }

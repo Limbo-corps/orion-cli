@@ -30,6 +30,7 @@ pub struct App {
     pub frame_tick: usize,
     pub conversation: ConversationWidget,
     pub input: String,
+    pub cursor_position: usize, // Track character index inside `input`
     pub msg_counter: usize,
 
     // Client
@@ -49,6 +50,7 @@ impl App {
             frame_tick: 0,
             conversation: ConversationWidget::new(),
             input: String::new(),
+            cursor_position: 0,
             msg_counter: 0,
             client: None,
             prompt_area: Rect::default(),
@@ -59,17 +61,54 @@ impl App {
         self.frame_tick = self.frame_tick.wrapping_add(1);
     }
 
-    pub fn handle_mouse(&mut self, event: MouseEvent) {
-        if event.kind == MouseEventKind::Down(MouseButton::Left) {
-            let click_pos = Position::new(event.column, event.row);
+    pub fn move_cursor_left(&mut self) {
+        let cursor_moved_left = self.cursor_position.saturating_sub(1);
+        self.cursor_position = cursor_moved_left;
+    }
 
-            // If user clicks inside the prompt box -> Enter Insert mode
-            if self.prompt_area.contains(click_pos) {
-                self.input_mode = InputMode::Insert;
-            } else {
-                // Clicking anywhere else switches back to Normal mode
-                self.input_mode = InputMode::Normal;
+    pub fn move_cursor_right(&mut self) {
+        let cursor_moved_right = self.cursor_position.saturating_add(1);
+        if cursor_moved_right <= self.input.len() {
+            self.cursor_position = cursor_moved_right;
+        }
+    }
+
+    pub fn enter_char(&mut self, new_char: char) {
+        self.input.insert(self.cursor_position, new_char);
+        self.move_cursor_right();
+    }
+
+    pub fn delete_char(&mut self) {
+        if self.cursor_position != 0 {
+            let current_index = self.cursor_position;
+            let from_left_to_current_index = current_index - 1;
+
+            self.input.remove(from_left_to_current_index);
+            self.move_cursor_left();
+        }
+    }
+
+    pub fn handle_mouse(&mut self, event: MouseEvent) {
+        match event.kind {
+            MouseEventKind::Down(MouseButton::Left) => {
+                let click_pos = Position::new(event.column, event.row);
+
+                // If user clicks inside the prompt box -> Enter Insert mode
+                if self.prompt_area.contains(click_pos) {
+                    self.input_mode = InputMode::Insert;
+                } else {
+                    // Clicking anywhere else switches back to Normal mode
+                    self.input_mode = InputMode::Normal;
+                }
             }
+            // Vertical scroll wheel support
+            MouseEventKind::ScrollUp => {
+                self.conversation.scroll_up(2);
+            }
+            MouseEventKind::ScrollDown => {
+                self.conversation.scroll_down(2);
+            }
+            _ => {}
         }
     }
 
@@ -97,6 +136,7 @@ impl App {
         ));
 
         self.input.clear();
+        self.cursor_position = 0; // Reset cursor position on submit
         self.events_count += 1;
         self.mode = "THINKING".into();
     }
@@ -213,17 +253,20 @@ impl App {
         // 2. Render Left Column
         self.conversation.render(frame, left_chunks[0]);
 
-        // Render Prompt (Highlight border when focused in Insert mode)
+        // Render Prompt with current cursor position
         let is_focused = self.input_mode == InputMode::Insert;
-        frame.render_widget(
-            PromptWidget::render(&self.input, is_focused),
+        PromptWidget::render(
+            frame,
             left_chunks[1],
+            &self.input,
+            self.cursor_position,
+            is_focused,
         );
 
         // 3. Render Right Column
         frame.render_widget(EventStreamWidget::render(), content_chunks[1]);
 
-        // 4. Render Status Bar (with updated input mode indicator)
+        // 4. Render Status Bar
         frame.render_widget(
             StatusWidget::update_status(
                 &self.mode,
