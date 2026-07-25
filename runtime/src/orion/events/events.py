@@ -1,4 +1,5 @@
 from orion.events.base import Event, EventStatus
+from orion.transport.messages import MessageType
 
 # ============================================================
 # Pipeline Events
@@ -16,6 +17,7 @@ class VoicePipelineStartEvent(PipelineStartEvent):
 class ChatPipelineStartEvent(PipelineStartEvent):
     """Published when a chat processing pipeline is started."""
 
+    type: MessageType = MessageType.SUBMIT_PROMPT
     text: str
 
 
@@ -44,10 +46,13 @@ class PipelineRestartEvent(Event):
 class VoiceRecordingStartEvent(Event):
     """Published when voice recording begins."""
 
+    type: MessageType = MessageType.VOICE_START
+
 
 class VoiceRecordingCompletedEvent(Event):
     """Published when voice recording has completed."""
 
+    type: MessageType = MessageType.VOICE_END
     audio_path: str | None = None
 
 
@@ -98,24 +103,28 @@ class AgentProcessingStartEvent(Event):
 class ResponseStartedEvent(Event):
     """Published when the assistant starts generating a response."""
 
+    type: MessageType = MessageType.ASSISTANT_START
+
 
 class ResponseChunkEvent(Event):
     """Published for each streamed response chunk."""
 
+    type: MessageType = MessageType.ASSISTANT_CHUNK
     text: str
 
 
 class ResponseCompletedEvent(Event):
     """Published when the assistant has finished generating a response."""
 
+    type: MessageType = MessageType.ASSISTANT_END
     status: EventStatus = EventStatus.SUCCESS
-
     text: str
 
 
 class ResponseGenerationFailedEvent(Event):
     """Published when response generation fails."""
 
+    type: MessageType = MessageType.ERROR
     status: EventStatus = EventStatus.ERROR
     error: str
 

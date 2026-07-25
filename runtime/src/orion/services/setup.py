@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from dataclasses import dataclass
 
 from langchain_groq import ChatGroq
@@ -18,8 +17,8 @@ class ServiceContext:
     memory: MemoryModule
 
 
-def setup_services(ctx: ServiceContext) -> Sequence[BaseService]:
-    services = [
+def setup_runtime_services(ctx: ServiceContext) -> list[BaseService]:
+    services: list[BaseService] = [
         VoiceRecordingService(),
         TranscriptGenerationService(),
         AgentService(

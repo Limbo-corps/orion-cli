@@ -80,15 +80,17 @@ async def run() -> None:
         planner=RetrievalPlanner(llm=llm),
     )
 
+    bridge = IPCBridge(bus)
+    
     orchestrator = Orchestrator(
         bus=bus,
         config=OrchestratorConfig(
             llm=llm,
             memory=memory,
+            bridge=bridge,
         ),
     )
 
-    bridge = IPCBridge(bus)
 
     server = IPCServer(
         socket_path="/tmp/orion.sock",
