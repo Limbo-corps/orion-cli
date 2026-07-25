@@ -106,6 +106,7 @@ def test_response_completed_event_round_trip() -> None:
         session_id=uuid4(),
         correlation_id=uuid4(),
         source="agent",
+        text="Hello.",
     )
 
     payload = event.model_dump(mode="json")
