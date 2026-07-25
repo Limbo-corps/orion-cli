@@ -6,7 +6,6 @@ from langchain_groq import ChatGroq
 from orion.memory.module import MemoryModule
 
 from orion.services.agent import AgentService
-from orion.services.audio_playback import AudioPlaybackService
 from orion.services.base import BaseService
 from orion.services.text_to_speech import TTSService
 from orion.services.transcript_generation import TranscriptGenerationService
@@ -28,7 +27,6 @@ def setup_services(ctx: ServiceContext) -> Sequence[BaseService]:
             memory=ctx.memory,
         ),
         TTSService(),
-        AudioPlaybackService(),
     ]
 
     for service in services:
