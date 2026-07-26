@@ -1,10 +1,12 @@
 mod app;
+mod effects;
 mod ipc;
 mod theme;
+mod ui;
 mod widgets;
 
 use std::error::Error;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossterm::{
     event::{DisableMouseCapture, EnableMouseCapture, Event, EventStream, KeyCode, KeyModifiers},
@@ -19,7 +21,8 @@ use app::{App, InputMode};
 use ipc::client::OrionClient;
 
 const SOCKET_PATH: &str = "/tmp/orion.sock";
-const TICK_RATE: Duration = Duration::from_millis(100);
+// ~30 FPS so tachyonfx effects animate smoothly instead of stepping.
+const TICK_RATE: Duration = Duration::from_millis(33);
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -49,8 +52,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 
     // Main Async Event Loop
+    let mut last_frame = Instant::now();
     loop {
-        terminal.draw(|f| app.draw(f))?;
+        let dt = last_frame.elapsed();
+        last_frame = Instant::now();
+        terminal.draw(|f| ui::draw(&mut app, f, dt.into()))?;
 
         if app.should_quit {
             break;
