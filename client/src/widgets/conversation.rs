@@ -189,7 +189,7 @@ impl ConversationWidget {
 
         // Calculate bottom-up visible window including scroll offset
         let mut start_idx = 0;
-        let mut end_idx = self.messages.len().saturating_sub(self.scroll_offset);
+        let end_idx = self.messages.len().saturating_sub(self.scroll_offset);
         let mut accumulated_height = 0;
 
         for (i, &h) in message_heights[..end_idx].iter().enumerate().rev() {

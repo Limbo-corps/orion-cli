@@ -1,20 +1,10 @@
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
-use ratatui::{
-    Frame,
-    layout::{Constraint, Direction, Layout, Position, Rect},
-};
+use ratatui::layout::{Position, Rect};
 
-use crate::widgets::{
-    conversation::{Author, ConversationWidget, Message},
-    events::EventStreamWidget,
-    header::BannerWidget,
-    prompt::PromptWidget,
-    status::StatusWidget,
-};
-use crate::{
-    ipc::{client::OrionClient, events::RuntimeEvent},
-    theme::default_style,
-};
+use crate::effects::Effects;
+use crate::ipc::{client::OrionClient, events::RuntimeEvent};
+use crate::theme;
+use crate::widgets::conversation::{Author, ConversationWidget, Message};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum InputMode {
@@ -38,6 +28,9 @@ pub struct App {
 
     // Store layout bounds for mouse click target checks
     pub prompt_area: Rect,
+
+    // Animations (tachyonfx)
+    pub effects: Effects,
 }
 
 impl App {
@@ -54,6 +47,7 @@ impl App {
             msg_counter: 0,
             client: None,
             prompt_area: Rect::default(),
+            effects: Effects::new(),
         }
     }
 
@@ -76,6 +70,7 @@ impl App {
     pub fn enter_char(&mut self, new_char: char) {
         self.input.insert(self.cursor_position, new_char);
         self.move_cursor_right();
+        self.effects.on_keystroke();
     }
 
     pub fn delete_char(&mut self) {
@@ -134,6 +129,7 @@ impl App {
             Author::User,
             content,
         ));
+        self.effects.on_message();
 
         self.input.clear();
         self.cursor_position = 0; // Reset cursor position on submit
@@ -145,10 +141,12 @@ impl App {
         match event {
             RuntimeEvent::Connected => {
                 self.mode = "CONNECTED".into();
+                self.effects.on_status_change(theme::OK);
             }
 
             RuntimeEvent::Disconnected => {
                 self.mode = "DISCONNECTED".into();
+                self.effects.on_status_change(theme::DANGER);
             }
 
             RuntimeEvent::AssistantStart => {
@@ -158,6 +156,7 @@ impl App {
                 // Begin a single message bubble for the streaming response
                 self.conversation
                     .begin_assistant_message(format!("msg-{}", self.msg_counter));
+                self.effects.on_message();
             }
 
             RuntimeEvent::AssistantChunk(text) => {
@@ -185,6 +184,7 @@ impl App {
 
             RuntimeEvent::Error { message, .. } => {
                 self.mode = format!("ERROR: {}", message);
+                self.effects.on_status_change(theme::DANGER);
             }
 
             RuntimeEvent::Ping => {
@@ -209,72 +209,5 @@ impl App {
 
             RuntimeEvent::Unknown(_) => {}
         }
-    }
-
-    pub fn draw(&mut self, frame: &mut Frame) {
-        let area = frame.area();
-        frame.render_widget(
-            ratatui::widgets::Block::default().style(default_style()),
-            area,
-        );
-
-        // Main Vertical Split
-        let main_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .margin(1)
-            .constraints([
-                Constraint::Length(2), // Banner
-                Constraint::Min(0),    // Content
-                Constraint::Length(1), // Status Bar
-            ])
-            .split(area);
-
-        // Horizontal Middle Split: Left Column (66%), Right Column (34%)
-        let content_chunks = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([Constraint::Percentage(66), Constraint::Percentage(34)])
-            .split(main_chunks[1]);
-
-        // Left Column Vertical Split: Conversation Area (Flex) + Prompt Box (3 rows)
-        let left_chunks = Layout::default()
-            .direction(Direction::Vertical)
-            .constraints([
-                Constraint::Min(0),    // Conversation
-                Constraint::Length(3), // Prompt input box
-            ])
-            .split(content_chunks[0]);
-
-        // Cache prompt area for mouse click collision detection
-        self.prompt_area = left_chunks[1];
-
-        // 1. Render Banner
-        frame.render_widget(BannerWidget::render(main_chunks[0]), main_chunks[0]);
-
-        // 2. Render Left Column
-        self.conversation.render(frame, left_chunks[0]);
-
-        // Render Prompt with current cursor position
-        let is_focused = self.input_mode == InputMode::Insert;
-        PromptWidget::render(
-            frame,
-            left_chunks[1],
-            &self.input,
-            self.cursor_position,
-            is_focused,
-        );
-
-        // 3. Render Right Column
-        frame.render_widget(EventStreamWidget::render(), content_chunks[1]);
-
-        // 4. Render Status Bar
-        frame.render_widget(
-            StatusWidget::update_status(
-                &self.mode,
-                &self.input_mode,
-                self.events_count,
-                self.frame_tick,
-            ),
-            main_chunks[2],
-        );
     }
 }

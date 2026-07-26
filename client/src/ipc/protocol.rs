@@ -1,7 +1,4 @@
-use crate::ipc::{
-    error::IpcError,
-    messages::Envelope,
-};
+use crate::ipc::{error::IpcError, messages::Envelope};
 
 /// Serialize an IPC message into bytes.
 ///

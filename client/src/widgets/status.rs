@@ -86,14 +86,4 @@ impl StatusWidget {
 
         Paragraph::new(content)
     }
-
-    /// Convenience update helper to update state fields and build the Paragraph
-    pub fn update_status(
-        mode: &str,
-        input_mode: &InputMode,
-        events_count: usize,
-        frame_tick: usize,
-    ) -> Paragraph<'static> {
-        Self::render(mode, input_mode, events_count, frame_tick)
-    }
 }
