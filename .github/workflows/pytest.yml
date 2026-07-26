@@ -77,5 +77,11 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Install audio build dependencies
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+
       - name: Build client
         run: cargo build --verbose
+
+      - name: Run client tests
+        run: cargo test --verbose
