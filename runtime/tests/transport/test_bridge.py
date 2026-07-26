@@ -140,7 +140,7 @@ async def test_invalid_message_type_is_rejected_by_envelope() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ping_not_implemented() -> None:
+async def test_ping_with_pong() -> None:
     bus = FakeEventBus()
     bridge = IPCBridge(bus)
     session = FakeSession()
@@ -153,7 +153,8 @@ async def test_ping_not_implemented() -> None:
     await bridge.handle(session, message)
 
     assert bus.events == []
-    assert session.sent == []
+    assert len(session.sent) == 1
+    assert session.sent[0].type == MessageType.PONG
 
 
 @pytest.mark.asyncio
