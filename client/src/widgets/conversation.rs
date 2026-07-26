@@ -10,8 +10,8 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 
 use crate::theme::{
-    FG, ORION_ACCENT, ORION_BUBBLE, ORION_EDGE, ORION_ICON, PANEL_BG, USER_ACCENT, USER_BUBBLE,
-    USER_EDGE, USER_NAME, border_style,
+    DANGER, FG, MUTED, OK, ORION_ACCENT, ORION_BUBBLE, ORION_EDGE, ORION_ICON, PANEL_BG,
+    USER_ACCENT, USER_BUBBLE, USER_EDGE, USER_NAME, border_style,
 };
 
 /// IPC-friendly payload enum for identifying sender roles
@@ -19,6 +19,16 @@ use crate::theme::{
 pub enum Author {
     Orion,
     User,
+    /// A Copilot-style inline activity log, not a chat bubble.
+    Activity,
+}
+
+/// Status of a Copilot-style activity log line.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ActivityKind {
+    Running,
+    Done,
+    Failed,
 }
 
 /// Dynamic message model designed to be serialized/deserialized over IPC channels
@@ -28,22 +38,38 @@ pub struct Message {
     pub author: Author,
     pub content: String,
     pub timestamp: u64,
+    /// Present only for `Author::Activity` messages.
+    pub activity: Option<ActivityKind>,
 }
 
 impl Message {
     pub fn new(id: String, author: Author, content: String) -> Self {
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
         Self {
             id,
             author,
             content,
-            timestamp,
+            timestamp: now_secs(),
+            activity: None,
         }
     }
+
+    /// Build a concise activity log line (rendered inline, not as a bubble).
+    pub fn activity(id: String, content: String, kind: ActivityKind) -> Self {
+        Self {
+            id,
+            author: Author::Activity,
+            content,
+            timestamp: now_secs(),
+            activity: Some(kind),
+        }
+    }
+}
+
+fn now_secs() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
 }
 
 #[derive(Default)]
@@ -157,6 +183,11 @@ impl ConversationWidget {
             .messages
             .iter()
             .map(|msg| {
+                // Activity logs are single compact lines, not bubbles.
+                if msg.author == Author::Activity {
+                    return 1;
+                }
+
                 let text_width = max_bubble_width.saturating_sub(4).max(1) as usize;
 
                 let lines: usize = msg
@@ -223,6 +254,20 @@ impl ConversationWidget {
             }
 
             match msg.author {
+                Author::Activity => {
+                    let (icon, color) = match msg.activity {
+                        Some(ActivityKind::Running) => ("◐", ORION_ACCENT),
+                        Some(ActivityKind::Done) => ("✓", OK),
+                        Some(ActivityKind::Failed) => ("✕", DANGER),
+                        None => ("·", MUTED),
+                    };
+                    let text_color = if color == DANGER { DANGER } else { MUTED };
+                    let line = Line::from(vec![
+                        Span::styled(format!("  {} ", icon), Style::default().fg(color)),
+                        Span::styled(&msg.content, Style::default().fg(text_color)),
+                    ]);
+                    frame.render_widget(Paragraph::new(line), rows[i]);
+                }
                 Author::User => {
                     let content_len =
                         (msg.content.len() as u16 + 4).max(USER_NAME.len() as u16 + 4);

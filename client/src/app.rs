@@ -4,7 +4,8 @@ use ratatui::layout::{Position, Rect};
 use crate::effects::Effects;
 use crate::ipc::{client::OrionClient, events::RuntimeEvent};
 use crate::theme;
-use crate::widgets::conversation::{Author, ConversationWidget, Message};
+use crate::widgets::conversation::{ActivityKind, Author, ConversationWidget, Message};
+use crate::widgets::events::{EventLog, EventStatus};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum InputMode {
@@ -28,6 +29,10 @@ pub struct App {
 
     // Store layout bounds for mouse click target checks
     pub prompt_area: Rect,
+    pub events_area: Rect,
+
+    // Real-time runtime event trace
+    pub events: EventLog,
 
     // Animations (tachyonfx)
     pub effects: Effects,
@@ -47,6 +52,8 @@ impl App {
             msg_counter: 0,
             client: None,
             prompt_area: Rect::default(),
+            events_area: Rect::default(),
+            events: EventLog::new(),
             effects: Effects::new(),
         }
     }
@@ -96,12 +103,22 @@ impl App {
                     self.input_mode = InputMode::Normal;
                 }
             }
-            // Vertical scroll wheel support
+            // Vertical scroll wheel — route to whichever panel is hovered.
             MouseEventKind::ScrollUp => {
-                self.conversation.scroll_up(2);
+                let pos = Position::new(event.column, event.row);
+                if self.events_area.contains(pos) {
+                    self.events.scroll_up(2);
+                } else {
+                    self.conversation.scroll_up(2);
+                }
             }
             MouseEventKind::ScrollDown => {
-                self.conversation.scroll_down(2);
+                let pos = Position::new(event.column, event.row);
+                if self.events_area.contains(pos) {
+                    self.events.scroll_down(2);
+                } else {
+                    self.conversation.scroll_down(2);
+                }
             }
             _ => {}
         }
@@ -124,6 +141,8 @@ impl App {
         self.msg_counter += 1;
 
         // Clean construction using Message::new
+        self.events
+            .push("PROMPT", EventStatus::Info, "prompt submitted");
         self.conversation.add_message(Message::new(
             format!("msg-{}", self.msg_counter),
             Author::User,
@@ -139,14 +158,13 @@ impl App {
 
     pub fn handle_runtime_event(&mut self, event: RuntimeEvent) {
         match event {
-            RuntimeEvent::Connected => {
-                self.mode = "CONNECTED".into();
-                self.effects.on_status_change(theme::OK);
-            }
+            RuntimeEvent::Connected => self.on_connected(),
 
             RuntimeEvent::Disconnected => {
                 self.mode = "DISCONNECTED".into();
                 self.effects.on_status_change(theme::DANGER);
+                self.events
+                    .push("DISCONNECTED", EventStatus::Failed, "runtime disconnected");
             }
 
             RuntimeEvent::AssistantStart => {
@@ -157,57 +175,115 @@ impl App {
                 self.conversation
                     .begin_assistant_message(format!("msg-{}", self.msg_counter));
                 self.effects.on_message();
+                self.events
+                    .push("RESPONSE", EventStatus::Running, "assistant responding");
             }
 
             RuntimeEvent::AssistantChunk(text) => {
-                // Append text chunk directly to active message bubble
                 self.conversation.append_assistant_chunk(&text);
+                // Coalesce chunk spam onto the running RESPONSE trace line.
+                self.events
+                    .bump_last("RESPONSE", EventStatus::Running, "streaming…");
             }
 
             RuntimeEvent::AssistantEnd => {
                 self.mode = "IDLE".into();
                 self.conversation.finish_assistant_message();
+                self.events
+                    .bump_last("RESPONSE", EventStatus::Completed, "response complete");
             }
 
             RuntimeEvent::ToolStarted { name } => {
                 self.mode = format!("TOOL: {}", name);
+                self.events
+                    .push("TOOL_STARTED", EventStatus::Running, name.clone());
+                self.add_activity(format!("Running {}…", name), ActivityKind::Running);
             }
 
             RuntimeEvent::ToolFinished { name, success } => {
-                let status = if success { "OK" } else { "FAILED" };
-                self.mode = format!("TOOL {}: {}", status, name);
+                let label = if success { "OK" } else { "FAILED" };
+                self.mode = format!("TOOL {}: {}", label, name);
+
+                let status = if success {
+                    EventStatus::Completed
+                } else {
+                    EventStatus::Failed
+                };
+                self.events.push("TOOL_FINISHED", status, name.clone());
+
+                if success {
+                    self.add_activity(format!("Finished {}", name), ActivityKind::Done);
+                } else {
+                    self.add_activity(format!("Failed {}", name), ActivityKind::Failed);
+                }
             }
 
             RuntimeEvent::Status(status) => {
-                self.mode = status;
+                self.mode = status.clone();
+                self.events.push("STATUS", EventStatus::Info, status);
             }
 
-            RuntimeEvent::Error { message, .. } => {
+            RuntimeEvent::Error { code, message } => {
                 self.mode = format!("ERROR: {}", message);
                 self.effects.on_status_change(theme::DANGER);
+                self.events.push(
+                    "ERROR",
+                    EventStatus::Failed,
+                    format!("{}: {}", code, message),
+                );
             }
 
-            RuntimeEvent::Ping => {
-                // Heartbeat ping received from runtime
-            }
-
-            RuntimeEvent::Pong => {
-                // Heartbeat pong response
-            }
+            // Heartbeat — intentionally not traced (too noisy).
+            RuntimeEvent::Ping | RuntimeEvent::Pong => {}
 
             RuntimeEvent::VoiceStart => {
                 self.mode = "VOICE RECORDING".into();
+                self.events
+                    .push("VOICE_START", EventStatus::Running, "recording");
             }
 
-            RuntimeEvent::VoiceChunk { .. } => {
-                // Voice stream data chunk received
-            }
+            RuntimeEvent::VoiceChunk { .. } => {}
 
             RuntimeEvent::VoiceEnd => {
                 self.mode = "PROCESSING VOICE".into();
+                self.events
+                    .push("VOICE_END", EventStatus::Info, "processing");
             }
 
             RuntimeEvent::Unknown(_) => {}
         }
+    }
+
+    /// Append a Copilot-style activity log line to the conversation.
+    fn add_activity(&mut self, text: String, kind: ActivityKind) {
+        self.msg_counter += 1;
+        self.conversation.add_message(Message::activity(
+            format!("act-{}", self.msg_counter),
+            text,
+            kind,
+        ));
+        self.effects.on_message();
+    }
+
+    /// Runtime socket connected (called from the event loop on startup).
+    pub fn on_connected(&mut self) {
+        self.mode = "CONNECTED".into();
+        self.effects.on_status_change(theme::OK);
+        self.events
+            .push("CONNECTED", EventStatus::Completed, "runtime connected");
+    }
+
+    /// Runtime socket unavailable at startup.
+    pub fn on_offline(&mut self, detail: String) {
+        self.mode = format!("OFFLINE ({})", detail);
+        self.effects.on_status_change(theme::DANGER);
+        self.events.push("OFFLINE", EventStatus::Failed, detail);
+    }
+
+    /// IPC stream error while running.
+    pub fn on_ipc_error(&mut self, detail: String) {
+        self.mode = format!("IPC ERROR: {}", detail);
+        self.effects.on_status_change(theme::DANGER);
+        self.events.push("IPC_ERROR", EventStatus::Failed, detail);
     }
 }

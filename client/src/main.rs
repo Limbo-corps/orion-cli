@@ -44,10 +44,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     match OrionClient::connect(SOCKET_PATH).await {
         Ok(client) => {
             app.client = Some(client);
-            app.mode = "CONNECTED".to_string();
+            app.on_connected();
         }
         Err(err) => {
-            app.mode = format!("OFFLINE ({})", err);
+            app.on_offline(err.to_string());
         }
     }
 
@@ -151,7 +151,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             } => {
                 match runtime_event {
                     Some(Ok(event)) => app.handle_runtime_event(event),
-                    Some(Err(err)) => app.mode = format!("IPC ERROR: {}", err),
+                    Some(Err(err)) => app.on_ipc_error(err.to_string()),
                     None => {}
                 }
             }

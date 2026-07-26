@@ -12,9 +12,7 @@ use tachyonfx::Duration;
 
 use crate::app::{App, InputMode};
 use crate::theme::default_style;
-use crate::widgets::{
-    events::EventStreamWidget, header::BannerWidget, prompt::PromptWidget, status::StatusWidget,
-};
+use crate::widgets::{header::BannerWidget, prompt::PromptWidget, status::StatusWidget};
 
 /// Render one frame: widgets first, then the animated effect passes.
 pub fn draw(app: &mut App, frame: &mut Frame, dt: Duration) {
@@ -52,8 +50,9 @@ pub fn draw(app: &mut App, frame: &mut Frame, dt: Duration) {
     let events_area = content[1];
     let status_area = main[2];
 
-    // Cache prompt bounds for mouse hit-testing.
+    // Cache panel bounds for mouse hit-testing / scroll routing.
     app.prompt_area = prompt_area;
+    app.events_area = events_area;
 
     // --- widgets --------------------------------------------------------
     frame.render_widget(BannerWidget::render(header_area), header_area);
@@ -68,7 +67,7 @@ pub fn draw(app: &mut App, frame: &mut Frame, dt: Duration) {
         is_focused,
     );
 
-    frame.render_widget(EventStreamWidget::render(), events_area);
+    app.events.render(frame, events_area);
     frame.render_widget(
         StatusWidget::render(&app.mode, &app.input_mode, app.events_count, app.frame_tick),
         status_area,
@@ -84,4 +83,43 @@ pub fn draw(app: &mut App, frame: &mut Frame, dt: Duration) {
     app.effects.render_prompt(frame, prompt_area, dt);
     app.effects.render_status(frame, status_area, dt);
     app.effects.render_startup(frame, area, dt);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::App;
+    use crate::ipc::events::RuntimeEvent;
+    use ratatui::{Terminal, backend::TestBackend};
+    use tachyonfx::Duration;
+
+    /// Feed a realistic sequence of runtime events through the app and render
+    /// several frames — the event stream, activity logs, and effects must all
+    /// process without panicking.
+    #[test]
+    fn renders_events_and_activities_without_panicking() {
+        let mut app = App::new();
+        app.handle_runtime_event(RuntimeEvent::Connected);
+        app.handle_runtime_event(RuntimeEvent::ToolStarted {
+            name: "read_file".into(),
+        });
+        app.handle_runtime_event(RuntimeEvent::ToolFinished {
+            name: "read_file".into(),
+            success: true,
+        });
+        app.handle_runtime_event(RuntimeEvent::ToolFinished {
+            name: "write_file".into(),
+            success: false,
+        });
+        app.handle_runtime_event(RuntimeEvent::AssistantStart);
+        app.handle_runtime_event(RuntimeEvent::AssistantChunk("hello".into()));
+        app.handle_runtime_event(RuntimeEvent::AssistantEnd);
+
+        let mut terminal = Terminal::new(TestBackend::new(100, 30)).unwrap();
+        for _ in 0..5 {
+            terminal
+                .draw(|frame| draw(&mut app, frame, Duration::from_millis(16)))
+                .unwrap();
+        }
+    }
 }
