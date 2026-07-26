@@ -161,6 +161,16 @@ impl ConversationWidget {
         self.scroll_offset = 0;
     }
 
+    /// Text of the most recent assistant message (for TTS), or empty.
+    pub fn last_assistant_text(&self) -> String {
+        self.messages
+            .iter()
+            .rev()
+            .find(|m| m.author == Author::Orion)
+            .map(|m| m.content.clone())
+            .unwrap_or_default()
+    }
+
     pub fn render(&mut self, frame: &mut Frame, area: Rect) {
         // Outer Panel Block
         let outer_block = Block::default()

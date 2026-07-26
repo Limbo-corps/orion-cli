@@ -90,6 +90,33 @@ impl Envelope {
         }
     }
 
+    /// Announce the start of a voice recording session (metadata only).
+    pub fn voice_start(sample_rate: u32, channels: u32) -> Self {
+        Self {
+            version: 1,
+            id: Uuid::new_v4(),
+            correlation_id: Uuid::new_v4(),
+            message_type: MessageType::VoiceStart,
+            payload: serde_json::to_value(VoiceStartPayload {
+                sample_rate,
+                channels,
+                encoding: "pcm16".to_string(),
+            })
+            .unwrap(),
+        }
+    }
+
+    /// Finish a recording by handing the runtime the recorded file path.
+    pub fn voice_end(path: impl Into<String>) -> Self {
+        Self {
+            version: 1,
+            id: Uuid::new_v4(),
+            correlation_id: Uuid::new_v4(),
+            message_type: MessageType::VoiceEnd,
+            payload: serde_json::to_value(VoiceEndPayload { path: path.into() }).unwrap(),
+        }
+    }
+
     /// Deserialize the payload into a strongly typed struct.
     pub fn payload<T>(&self) -> serde_json::Result<T>
     where
@@ -126,8 +153,11 @@ pub struct VoiceChunkPayload {
     pub data: Vec<u8>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct VoiceEndPayload;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoiceEndPayload {
+    /// Path to the recorded audio file the runtime should transcribe.
+    pub path: String,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AssistantStartPayload;

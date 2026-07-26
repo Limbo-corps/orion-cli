@@ -1,4 +1,5 @@
 mod app;
+mod audio;
 mod effects;
 mod ipc;
 mod theme;
@@ -24,7 +25,9 @@ const SOCKET_PATH: &str = "/tmp/orion.sock";
 // ~30 FPS so tachyonfx effects animate smoothly instead of stepping.
 const TICK_RATE: Duration = Duration::from_millis(33);
 
-#[tokio::main]
+// Single-threaded runtime: the audio input stream is `!Send`, so the app
+// state (which owns it) must stay on one thread.
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), Box<dyn Error>> {
     // Setup terminal
     enable_raw_mode()?;
@@ -86,6 +89,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
                                         // Quit
                                         KeyCode::Char('q') | KeyCode::Esc => {
                                             app.should_quit = true;
+                                        }
+                                        // Push-to-talk: toggle voice recording
+                                        KeyCode::Char('v') => {
+                                            app.toggle_recording().await;
+                                        }
+                                        // Interrupt assistant speech
+                                        KeyCode::Char('s') => {
+                                            app.interrupt_speech();
                                         }
                                         // Conversation Scrolling (Vim keys & standard navigation)
                                         KeyCode::Up | KeyCode::Char('k') => {
