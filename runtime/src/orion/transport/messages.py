@@ -152,7 +152,14 @@ class VoiceChunkPayload(BaseModel):
 
 
 class VoiceEndPayload(BaseModel):
-    """Marks the end of a streamed voice recording."""
+    """Marks the end of a voice recording.
+
+    Carries the path to the file the client recorded; the runtime reads and
+    transcribes it (the preferred, non-streamed flow).
+    """
+
+    #: Filesystem path to the recorded audio, as seen by the runtime.
+    path: str
 
 
 # ======================================================================

@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from collections.abc import Awaitable, Callable
+
 from orion.bus.event_bus import EventBus
 from orion.events.events import ChatPipelineStartEvent
 from orion.transport.messages import (
@@ -21,8 +23,13 @@ from orion.transport.messages import (
     MessageType,
     PongPayload,
     SubmitPromptPayload,
+    VoiceEndPayload,
 )
 from orion.transport.session import ClientSession
+from orion.transport.transcription import transcribe_audio
+
+#: Async callable turning a recorded audio path into transcript text.
+Transcriber = Callable[[str], Awaitable[str]]
 
 
 class IPCBridge:
@@ -30,8 +37,13 @@ class IPCBridge:
     Bridges IPC protocol messages and Orion domain events.
     """
 
-    def __init__(self, event_bus: EventBus) -> None:
+    def __init__(
+        self,
+        event_bus: EventBus,
+        transcriber: Transcriber = transcribe_audio,
+    ) -> None:
         self._event_bus = event_bus
+        self._transcriber = transcriber
         self._sessions: dict[UUID, ClientSession] = {}
 
     # ------------------------------------------------------------------
@@ -92,13 +104,15 @@ class IPCBridge:
                 await self._handle_submit_prompt(session, envelope)
 
             case MessageType.VOICE_START:
-                ...
+                # Session metadata only; the path-based flow acts on VOICE_END.
+                pass
 
             case MessageType.VOICE_CHUNK:
-                ...
+                # Streamed audio is a future enhancement.
+                pass
 
             case MessageType.VOICE_END:
-                ...
+                await self._handle_voice_end(session, envelope)
 
             case _:
                 raise ValueError(f"Unsupported IPC message: {envelope.type}")
@@ -138,6 +152,36 @@ class IPCBridge:
                 source="ipc",
                 message="Prompt submitted via IPC.",
                 text=payload.text,
+            )
+        )
+
+    async def _handle_voice_end(
+        self,
+        session: ClientSession,
+        envelope: Envelope,
+    ) -> None:
+        """
+        Transcribe a recorded voice message and start the chat pipeline.
+
+        The client sends the path to the audio it recorded; the runtime
+        transcribes it and drives the same pipeline as a typed prompt.
+        """
+
+        payload = VoiceEndPayload.model_validate(envelope.payload)
+
+        transcript = (await self._transcriber(payload.path)).strip()
+
+        # Ignore empty transcriptions (silence / failed capture).
+        if not transcript:
+            return
+
+        await self._event_bus.publish(
+            ChatPipelineStartEvent(
+                correlation_id=envelope.correlation_id,
+                session_id=session.id,
+                source="ipc",
+                message="Voice prompt transcribed via IPC.",
+                text=transcript,
             )
         )
 

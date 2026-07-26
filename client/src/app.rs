@@ -1,6 +1,7 @@
 use crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::layout::{Position, Rect};
 
+use crate::audio::{Recorder, Speaker, recording_path};
 use crate::effects::Effects;
 use crate::ipc::{client::OrionClient, events::RuntimeEvent};
 use crate::theme;
@@ -27,6 +28,10 @@ pub struct App {
     // Client
     pub client: Option<OrionClient>,
 
+    // Audio — the client owns all audio hardware
+    pub recorder: Option<Recorder>,
+    pub speaker: Speaker,
+
     // Store layout bounds for mouse click target checks
     pub prompt_area: Rect,
     pub events_area: Rect,
@@ -51,6 +56,8 @@ impl App {
             cursor_position: 0,
             msg_counter: 0,
             client: None,
+            recorder: None,
+            speaker: Speaker::new(),
             prompt_area: Rect::default(),
             events_area: Rect::default(),
             events: EventLog::new(),
@@ -156,6 +163,69 @@ impl App {
         self.mode = "THINKING".into();
     }
 
+    // --- Voice (push-to-talk) ------------------------------------------
+
+    /// Toggle recording: press once to start, again to stop and send.
+    pub async fn toggle_recording(&mut self) {
+        if self.recorder.is_some() {
+            self.stop_recording().await;
+        } else {
+            self.start_recording().await;
+        }
+    }
+
+    async fn start_recording(&mut self) {
+        self.speaker.stop(); // a new recording interrupts any speech
+
+        match Recorder::start(recording_path()) {
+            Ok(recorder) => {
+                let sample_rate = recorder.sample_rate();
+                let channels = recorder.channels() as u32;
+                self.recorder = Some(recorder);
+                self.mode = "RECORDING".into();
+                self.effects.on_status_change(theme::DANGER);
+                self.events
+                    .push("VOICE_START", EventStatus::Running, "recording");
+
+                if let Some(client) = &mut self.client {
+                    let _ = client.send_voice_start(sample_rate, channels).await;
+                }
+            }
+            Err(err) => {
+                self.mode = format!("MIC ERROR: {}", err);
+                self.events.push("VOICE_START", EventStatus::Failed, err);
+            }
+        }
+    }
+
+    async fn stop_recording(&mut self) {
+        let Some(recorder) = self.recorder.take() else {
+            return;
+        };
+
+        match recorder.finish() {
+            Ok(path) => {
+                let path = path.to_string_lossy().to_string();
+                self.mode = "TRANSCRIBING".into();
+                self.events
+                    .push("VOICE_END", EventStatus::Completed, path.clone());
+
+                if let Some(client) = &mut self.client {
+                    let _ = client.send_voice_end(path).await;
+                }
+            }
+            Err(err) => {
+                self.mode = format!("REC ERROR: {}", err);
+                self.events.push("VOICE_END", EventStatus::Failed, err);
+            }
+        }
+    }
+
+    /// Interrupt any assistant speech currently playing.
+    pub fn interrupt_speech(&self) {
+        self.speaker.stop();
+    }
+
     pub fn handle_runtime_event(&mut self, event: RuntimeEvent) {
         match event {
             RuntimeEvent::Connected => self.on_connected(),
@@ -191,6 +261,8 @@ impl App {
                 self.conversation.finish_assistant_message();
                 self.events
                     .bump_last("RESPONSE", EventStatus::Completed, "response complete");
+                // Client-side TTS: speak the completed response.
+                self.speaker.speak(&self.conversation.last_assistant_text());
             }
 
             RuntimeEvent::ToolStarted { name } => {

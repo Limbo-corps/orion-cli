@@ -190,14 +190,43 @@ async def test_voice_chunk_not_implemented() -> None:
 
 
 @pytest.mark.asyncio
-async def test_voice_end_not_implemented() -> None:
+async def test_voice_end_transcribes_and_starts_pipeline() -> None:
     bus = FakeEventBus()
-    bridge = IPCBridge(bus)
+
+    async def fake_transcriber(path: str) -> str:
+        assert path == "/tmp/orion/input.wav"
+        return "  what is the system status  "
+
+    bridge = IPCBridge(bus, transcriber=fake_transcriber)
     session = FakeSession()
 
     message = Envelope(
         type=MessageType.VOICE_END,
-        payload={},
+        payload={"path": "/tmp/orion/input.wav"},
+    )
+
+    await bridge.handle(session, message)
+
+    assert len(bus.events) == 1
+    event = bus.events[0]
+    assert isinstance(event, ChatPipelineStartEvent)
+    assert event.text == "what is the system status"
+    assert event.correlation_id == message.correlation_id
+
+
+@pytest.mark.asyncio
+async def test_voice_end_ignores_empty_transcript() -> None:
+    bus = FakeEventBus()
+
+    async def fake_transcriber(_path: str) -> str:
+        return "   "
+
+    bridge = IPCBridge(bus, transcriber=fake_transcriber)
+    session = FakeSession()
+
+    message = Envelope(
+        type=MessageType.VOICE_END,
+        payload={"path": "/tmp/orion/input.wav"},
     )
 
     await bridge.handle(session, message)

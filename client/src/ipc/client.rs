@@ -31,6 +31,22 @@ impl OrionClient {
         self.session.send(&envelope).await
     }
 
+    /// Announce the start of a voice recording (metadata only).
+    pub async fn send_voice_start(
+        &mut self,
+        sample_rate: u32,
+        channels: u32,
+    ) -> Result<(), IpcError> {
+        self.session
+            .send(&Envelope::voice_start(sample_rate, channels))
+            .await
+    }
+
+    /// Finish a recording by sending the runtime the recorded file path.
+    pub async fn send_voice_end(&mut self, path: impl Into<String>) -> Result<(), IpcError> {
+        self.session.send(&Envelope::voice_end(path)).await
+    }
+
     /// Send a ping message.
     pub async fn ping(&mut self) -> Result<(), IpcError> {
         self.session.send(&Envelope::ping()).await

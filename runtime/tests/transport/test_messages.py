@@ -57,9 +57,9 @@ def test_voice_chunk_payload() -> None:
 
 
 def test_voice_end_payload() -> None:
-    payload = VoiceEndPayload()
+    payload = VoiceEndPayload(path="/tmp/orion/input.wav")
 
-    assert payload.model_dump() == {}
+    assert payload.model_dump() == {"path": "/tmp/orion/input.wav"}
 
 
 def test_assistant_chunk_payload() -> None:
