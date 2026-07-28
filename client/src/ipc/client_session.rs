@@ -19,6 +19,9 @@ pub struct ClientSession {
     id: Uuid,
     reader: BufReader<OwnedReadHalf>,
     writer: BufWriter<OwnedWriteHalf>,
+    /// Persistent line buffer so a `receive()` cancelled inside a `select!`
+    /// resumes instead of losing partially-read bytes (cancel-safety).
+    read_buf: String,
 }
 
 impl ClientSession {
@@ -31,6 +34,7 @@ impl ClientSession {
             id: Uuid::new_v4(),
             reader: BufReader::new(reader),
             writer: BufWriter::new(writer),
+            read_buf: String::new(),
         })
     }
 
@@ -48,14 +52,17 @@ impl ClientSession {
     }
 
     pub async fn receive(&mut self) -> Result<Envelope, IpcError> {
-        let mut line = String::new();
+        // Append into the persistent buffer. If this future is dropped by a
+        // `select!` (e.g. a UI tick wins), the bytes read so far remain in
+        // `read_buf`, and the next call resumes reading the same line — so no
+        // message is corrupted or lost.
+        let bytes = self.reader.read_line(&mut self.read_buf).await?;
 
-        let bytes = self.reader.read_line(&mut line).await?;
-
-        if bytes == 0 {
+        if bytes == 0 && self.read_buf.is_empty() {
             return Err(IpcError::Disconnected);
         }
 
+        let line = std::mem::take(&mut self.read_buf);
         decode(&line)
     }
 

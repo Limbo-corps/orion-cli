@@ -78,7 +78,10 @@ impl StatusWidget {
             sep.clone(),
             // 6. Keybindings info depending on mode
             if *input_mode == InputMode::Normal {
-                Span::styled("i insert  ·  q quit", Style::default().fg(DIM))
+                Span::styled(
+                    "i insert  ·  v talk  ·  s stop  ·  q quit",
+                    Style::default().fg(DIM),
+                )
             } else {
                 Span::styled("esc normal  ·  enter send", Style::default().fg(DIM))
             },

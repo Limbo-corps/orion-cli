@@ -12,10 +12,35 @@ use std::process::Command;
 use std::sync::{Arc, Mutex};
 
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::{FromSample, Sample, SizedSample};
 
 /// Default location for the recorded clip (shared with the runtime, same host).
 pub fn recording_path() -> PathBuf {
     std::env::temp_dir().join("orion_client_recording.wav")
+}
+
+/// Build an input stream for sample type `T`, converting each sample to i16.
+fn build_input<T>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    sink: Arc<Mutex<Vec<i16>>>,
+) -> Result<cpal::Stream, String>
+where
+    T: SizedSample,
+    i16: FromSample<T>,
+{
+    device
+        .build_input_stream(
+            config.clone(),
+            move |data: &[T], _: &cpal::InputCallbackInfo| {
+                if let Ok(mut buf) = sink.lock() {
+                    buf.extend(data.iter().map(|&s| i16::from_sample(s)));
+                }
+            },
+            |err| eprintln!("audio input error: {err}"),
+            None,
+        )
+        .map_err(|e| e.to_string())
 }
 
 /// An in-progress microphone recording. Dropping/finishing it stops capture.
@@ -42,33 +67,20 @@ impl Recorder {
         let config: cpal::StreamConfig = supported.into();
 
         let samples = Arc::new(Mutex::new(Vec::<i16>::new()));
-        let sink = samples.clone();
-        let err_fn = |err| eprintln!("audio input error: {err}");
 
+        // Accept any input sample format the device offers, converting each
+        // sample to i16 for the WAV.
         let stream = match sample_format {
-            cpal::SampleFormat::I16 => device.build_input_stream(
-                config,
-                move |data: &[i16], _: &cpal::InputCallbackInfo| {
-                    if let Ok(mut buf) = sink.lock() {
-                        buf.extend_from_slice(data);
-                    }
-                },
-                err_fn,
-                None,
-            ),
-            cpal::SampleFormat::F32 => device.build_input_stream(
-                config,
-                move |data: &[f32], _: &cpal::InputCallbackInfo| {
-                    if let Ok(mut buf) = sink.lock() {
-                        buf.extend(data.iter().map(|s| (s.clamp(-1.0, 1.0) * 32767.0) as i16));
-                    }
-                },
-                err_fn,
-                None,
-            ),
+            cpal::SampleFormat::I8 => build_input::<i8>(&device, &config, samples.clone()),
+            cpal::SampleFormat::I16 => build_input::<i16>(&device, &config, samples.clone()),
+            cpal::SampleFormat::I32 => build_input::<i32>(&device, &config, samples.clone()),
+            cpal::SampleFormat::U8 => build_input::<u8>(&device, &config, samples.clone()),
+            cpal::SampleFormat::U16 => build_input::<u16>(&device, &config, samples.clone()),
+            cpal::SampleFormat::U32 => build_input::<u32>(&device, &config, samples.clone()),
+            cpal::SampleFormat::F32 => build_input::<f32>(&device, &config, samples.clone()),
+            cpal::SampleFormat::F64 => build_input::<f64>(&device, &config, samples.clone()),
             other => return Err(format!("unsupported sample format: {other:?}")),
-        }
-        .map_err(|e| e.to_string())?;
+        }?;
 
         stream.play().map_err(|e| e.to_string())?;
 
