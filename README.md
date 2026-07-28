@@ -239,15 +239,55 @@ uv run python -m orion        # or: uv run orion
 
 ## Client (Rust)
 
-The terminal client lives in `client/` and is built with Cargo:
+The terminal client lives in `client/` and is built with Cargo. Start the
+runtime first (it opens the IPC socket the client connects to), then:
 
 ```bash
 cd client
 cargo run
 ```
 
-It is currently a minimal placeholder; the Ratatui UI and the IPC bridge to the
-runtime (see `runtime/src/orion/transport`) are upcoming.
+The client is a Ratatui TUI that talks to the runtime over `/tmp/orion.sock`.
+It renders the conversation, a live event stream, and Copilot-style activity
+logs, with tachyonfx animations.
+
+### Keybindings
+
+| Key | Action |
+|-----|--------|
+| `i` | enter insert mode (type a prompt) |
+| `Enter` | send the typed prompt (insert mode) |
+| `Esc` | back to normal mode |
+| `v` | push-to-talk: press to start recording, press again to send |
+| `s` | stop the assistant's speech |
+| `j`/`k`, arrows, `PgUp`/`PgDn` | scroll the conversation |
+| `q` | quit |
+
+### Voice
+
+Voice is handled entirely by the client; the runtime never touches audio
+hardware:
+
+1. Press `v` to record from your microphone, `v` again to stop.
+2. The client saves a WAV and sends its path to the runtime over IPC.
+3. The runtime transcribes it (Groq Whisper) and runs the normal chat pipeline.
+4. The response streams back and the client speaks it aloud.
+
+Text-to-speech uses your system speech engine via **speech-dispatcher**. Install
+it to hear responses (otherwise TTS is silently skipped):
+
+```bash
+sudo pacman -S speech-dispatcher   # Arch / EndeavourOS
+# Debian/Ubuntu: sudo apt-get install -y speech-dispatcher
+```
+
+Building the client also needs the ALSA development headers for microphone
+capture (`cpal`):
+
+```bash
+sudo pacman -S alsa-lib            # Arch / EndeavourOS
+# Debian/Ubuntu: sudo apt-get install -y libasound2-dev
+```
 
 ## Tests
 
