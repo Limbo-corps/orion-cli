@@ -4,7 +4,10 @@ use crate::ipc::{
     client_session::ClientSession,
     error::IpcError,
     events::RuntimeEvent,
-    messages::{AssistantChunkPayload, Envelope, ErrorPayload, MessageType, StatusPayload},
+    messages::{
+        AssistantChunkPayload, Envelope, ErrorPayload, MessageType, StatusPayload,
+        SubmitPromptPayload,
+    },
 };
 
 /// High-level IPC client used by the TUI.
@@ -65,6 +68,13 @@ impl OrionClient {
             }
 
             MessageType::AssistantEnd => RuntimeEvent::AssistantEnd,
+
+            // The runtime echoes the pipeline's user text back — a typed prompt
+            // or a transcribed voice message. Shown as the user's turn.
+            MessageType::SubmitPrompt => {
+                let payload: SubmitPromptPayload = envelope.payload()?;
+                RuntimeEvent::UserPrompt(payload.text)
+            }
 
             MessageType::Status => {
                 let payload: StatusPayload = envelope.payload()?;

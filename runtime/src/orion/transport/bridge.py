@@ -25,6 +25,7 @@ from orion.transport.messages import (
     SubmitPromptPayload,
     VoiceEndPayload,
 )
+from orion.services.transcript_generation import is_junk_transcript
 from orion.transport.session import ClientSession
 from orion.transport.transcription import transcribe_audio
 
@@ -171,8 +172,9 @@ class IPCBridge:
 
         transcript = (await self._transcriber(payload.path)).strip()
 
-        # Ignore empty transcriptions (silence / failed capture).
-        if not transcript:
+        # Ignore empty or hallucinated transcriptions (silence / noise) so a
+        # cough doesn't trigger a full agent turn.
+        if not transcript or is_junk_transcript(transcript):
             return
 
         await self._event_bus.publish(

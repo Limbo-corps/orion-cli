@@ -237,6 +237,23 @@ impl App {
                     .push("DISCONNECTED", EventStatus::Failed, "runtime disconnected");
             }
 
+            RuntimeEvent::UserPrompt(text) => {
+                let text = text.trim().to_string();
+                // Ignore the echo of a prompt we already showed locally (typed);
+                // display it when it's new — i.e. a transcribed voice message.
+                if !text.is_empty()
+                    && self.conversation.last_user_text().as_deref() != Some(text.as_str())
+                {
+                    self.msg_counter += 1;
+                    self.conversation.add_message(Message::new(
+                        format!("msg-{}", self.msg_counter),
+                        Author::User,
+                        text,
+                    ));
+                    self.effects.on_message();
+                }
+            }
+
             RuntimeEvent::AssistantStart => {
                 self.mode = "RESPONDING".into();
                 self.msg_counter += 1;

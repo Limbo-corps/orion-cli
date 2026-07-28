@@ -161,6 +161,15 @@ impl ConversationWidget {
         self.scroll_offset = 0;
     }
 
+    /// Text of the most recent user message, if any.
+    pub fn last_user_text(&self) -> Option<String> {
+        self.messages
+            .iter()
+            .rev()
+            .find(|m| m.author == Author::User)
+            .map(|m| m.content.clone())
+    }
+
     /// Text of the most recent assistant message (for TTS), or empty.
     pub fn last_assistant_text(&self) -> String {
         self.messages
