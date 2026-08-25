@@ -1,120 +1,163 @@
+from __future__ import annotations
+
+import os
+import re
 from typing import LiteralString, cast
 
+from dotenv import load_dotenv
 from neo4j import AsyncDriver, AsyncGraphDatabase
+from typing_extensions import override
 
 from orion.memory.interfaces.graph import KnowledgeGraph
-from orion.memory.models import Entity, Fact, Relationship
+from orion.memory.models import Entity, Fact, GraphSchema
+
+load_dotenv()
+
+
+def normalize_predicate(predicate: str) -> str:
+    """
+    Normalize an LLM-generated fact predicate into a valid
+    Neo4j relationship type.
+
+    Examples:
+        "uses operating system"
+            -> "USES_OPERATING_SYSTEM"
+
+        "works at"
+            -> "WORKS_AT"
+
+        "favorite language"
+            -> "FAVORITE_LANGUAGE"
+    """
+
+    normalized = predicate.strip().upper()
+
+    # Replace every non-alphanumeric character with "_".
+    normalized = re.sub(
+        r"[^A-Z0-9]+",
+        "_",
+        normalized,
+    )
+
+    # Collapse repeated underscores.
+    normalized = re.sub(
+        r"_+",
+        "_",
+        normalized,
+    )
+
+    # Remove leading/trailing underscores.
+    normalized = normalized.strip("_")
+
+    if not normalized:
+        raise ValueError(
+            f"Invalid empty predicate: {predicate!r}"
+        )
+
+    return normalized
 
 
 class Neo4jKnowledgeGraph(KnowledgeGraph):
     """
-    Neo4j backed implementation of the ORION knowledge graph.
+    Neo4j-backed implementation of the ORION knowledge graph.
 
-    This class is purely responsible for persistence.
-    The LLM decides what gets inserted or removed.
+    Responsible only for persistence and retrieval of structured
+    knowledge. The caller decides what knowledge should be stored
+    or retrieved.
     """
 
     def __init__(
         self,
-        uri: str = "bolt://localhost:7687",
-        username: str = "neo4j",
-        password: str = "orion123",
+        uri: str,
+        username: str,
+        password: str,
     ) -> None:
         self.uri = uri
         self.username = username
         self.password = password
+
         self.driver: AsyncDriver | None = None
 
+    # ==========================================================
+    # Lifecycle
+    # ==========================================================
+
+    @override
     async def startup(self) -> None:
         self.driver = AsyncGraphDatabase.driver(
             self.uri,
-            auth=(self.username, self.password),
+            auth=(
+                self.username,
+                self.password,
+            ),
         )
+
         await self.driver.verify_connectivity()
 
+    @override
     async def shutdown(self) -> None:
         if self.driver is not None:
             await self.driver.close()
+            self.driver = None
 
-    async def add_entity(
-        self,
-        entity: Entity,
-    ) -> None:
-        assert self.driver is not None
+    # ==========================================================
+    # Storage
+    # ==========================================================
 
-        query = """
-        MERGE (e:Entity {name: $name})
-        SET e.label = $label
-        """
-
-        async with self.driver.session() as session:
-            await session.run(
-                query,
-                name=entity.name,
-                label=entity.label,
-            )
-
-    async def add_relationship(
-        self,
-        relationship: Relationship,
-    ) -> None:
-        assert self.driver is not None
-
-        query = cast(
-            LiteralString,
-            f"""
-            MATCH (a:Entity {{name: $source}})
-            MATCH (b:Entity {{name: $target}})
-            MERGE (a)-[r:{relationship.predicate}]->(b)
-            SET r.confidence = $confidence
-            """,
-        )
-
-        async with self.driver.session() as session:
-            await session.run(
-                query,
-                source=relationship.source,
-                target=relationship.target,
-                confidence=relationship.confidence,
-            )
-
+    @override
     async def add_fact(
         self,
         fact: Fact,
     ) -> None:
         assert self.driver is not None
 
-        query = cast(
+        predicate = normalize_predicate(
+            fact.predicate,
+        )
+
+        cypher = cast(
             LiteralString,
             f"""
             MERGE (a:Entity {{name: $subject}})
             MERGE (b:Entity {{name: $object}})
-            MERGE (a)-[r:{fact.predicate}]->(b)
+            MERGE (a)-[r:{predicate}]->(b)
             SET r.confidence = $confidence
             """,
         )
 
         async with self.driver.session() as session:
             await session.run(
-                query,
-                # Fixed: subject instead of source
+                cypher,
                 subject=fact.subject,
                 object=fact.object,
                 confidence=fact.confidence,
             )
 
+    @override
+    async def add_facts(
+        self,
+        facts: list[Fact],
+    ) -> None:
+        for fact in facts:
+            await self.add_fact(fact)
+
+    @override
     async def remove_fact(
         self,
         fact: Fact,
     ) -> None:
         assert self.driver is not None
 
-        query = cast(
+        predicate = normalize_predicate(
+            fact.predicate,
+        )
+
+        cypher = cast(
             LiteralString,
             f"""
             MATCH
                 (a:Entity {{name: $subject}})
-                -[r:{fact.predicate}]->
+                -[r:{predicate}]->
                 (b:Entity {{name: $object}})
             DELETE r
             """,
@@ -122,23 +165,35 @@ class Neo4jKnowledgeGraph(KnowledgeGraph):
 
         async with self.driver.session() as session:
             await session.run(
-                query,
+                cypher,
                 subject=fact.subject,
                 object=fact.object,
             )
 
-    async def query(
+    @override
+    async def remove_facts(
+        self,
+        facts: list[Fact],
+    ) -> None:
+        for fact in facts:
+            await self.remove_fact(fact)
+
+    # ==========================================================
+    # Retrieval
+    # ==========================================================
+
+    @override
+    async def search_facts(
         self,
         query: str,
     ) -> list[Fact]:
-        """
-        Return all facts involving the given entity.
-        """
         assert self.driver is not None
 
         cypher = """
         MATCH (a:Entity)-[r]->(b:Entity)
-        WHERE a.name = $query OR b.name = $query
+        WHERE
+            a.name = $query
+            OR b.name = $query
         RETURN
             a.name AS subject,
             type(r) AS predicate,
@@ -148,7 +203,7 @@ class Neo4jKnowledgeGraph(KnowledgeGraph):
 
         async with self.driver.session() as session:
             result = await session.run(
-                query=cypher,
+                cypher,
                 parameters={
                     "query": query,
                 },
@@ -168,16 +223,17 @@ class Neo4jKnowledgeGraph(KnowledgeGraph):
 
             return facts
 
+    @override
     async def related_entities(
         self,
         entity: str,
         *,
         depth: int = 1,
     ) -> list[Entity]:
-        """
-        Return entities connected to the supplied entity.
-        """
         assert self.driver is not None
+
+        if depth < 1:
+            return []
 
         cypher = cast(
             LiteralString,
@@ -194,10 +250,8 @@ class Neo4jKnowledgeGraph(KnowledgeGraph):
 
         async with self.driver.session() as session:
             result = await session.run(
-                query=cypher,
-                parameters={
-                    "entity": entity,
-                },
+                cypher,
+                entity=entity,
             )
 
             entities: list[Entity] = []
@@ -206,25 +260,71 @@ class Neo4jKnowledgeGraph(KnowledgeGraph):
                 entities.append(
                     Entity(
                         name=record["name"],
-                        label=record["label"],
+                        label=record["label"] or "Entity",
                     )
                 )
 
             return entities
 
-    async def clear(self) -> None:
-        """
-        Remove every node and relationship.
-        """
+    # ==========================================================
+    # Schema
+    # ==========================================================
+
+    @override
+    async def get_schema(self) -> GraphSchema:
         assert self.driver is not None
 
         async with self.driver.session() as session:
-            await session.run("MATCH (n) DETACH DELETE n")
+            labels_result = await session.run(
+                """
+                CALL db.labels()
+                YIELD label
+                RETURN label
+                ORDER BY label
+                """
+            )
 
+            labels: list[str] = []
+
+            async for record in labels_result:
+                labels.append(record["label"])
+
+            relationship_result = await session.run(
+                """
+                CALL db.relationshipTypes()
+                YIELD relationshipType
+                RETURN relationshipType
+                ORDER BY relationshipType
+                """
+            )
+
+            relationship_types: list[str] = []
+
+            async for record in relationship_result:
+                relationship_types.append(
+                    record["relationshipType"]
+                )
+
+            return GraphSchema(
+                labels=labels,
+                relationship_types=relationship_types,
+            )
+
+    # ==========================================================
+    # Maintenance
+    # ==========================================================
+
+    @override
+    async def clear(self) -> None:
+        assert self.driver is not None
+
+        async with self.driver.session() as session:
+            await session.run(
+                "MATCH (n) DETACH DELETE n"
+            )
+
+    @override
     async def count(self) -> int:
-        """
-        Return the total number of stored relationships.
-        """
         assert self.driver is not None
 
         async with self.driver.session() as session:

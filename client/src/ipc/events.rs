@@ -6,16 +6,62 @@ pub enum RuntimeEvent {
     Connected,
     Disconnected,
 
-    /// The user's turn text echoed by the runtime — a typed prompt or a
-    /// transcribed voice message.
-    UserPrompt(String),
+    // ------------------------------------------------------------------
+    // Pipeline
+    // ------------------------------------------------------------------
+    PipelineStart,
+    VoicePipelineStart,
+    ChatPipelineStart,
+
+    PipelineComplete,
+    PipelineFailed {
+        error: String,
+    },
+    PipelineRestart,
+
+    // ------------------------------------------------------------------
+    // Voice
+    // ------------------------------------------------------------------
+    VoiceRecordingStart,
+    VoiceRecordingCompleted {
+        audio_path: Option<String>,
+    },
+    VoiceRecordingFailed {
+        error: String,
+    },
+
+    SpeechDetected,
+    SilenceDetected {
+        silence_duration: f32,
+    },
+
+    // ------------------------------------------------------------------
+    // Speech-to-Text
+    // ------------------------------------------------------------------
+    TranscriptGenerated {
+        text: String,
+    },
+    TranscriptGenerationFailed {
+        error: String,
+    },
+
+    // ------------------------------------------------------------------
+    // Agent
+    // ------------------------------------------------------------------
+    AgentProcessingStart,
 
     // Assistant
     AssistantStart,
     AssistantChunk(String),
     AssistantEnd,
 
+    ResponseGenerationFailed {
+        error: String,
+    },
+
+    // ------------------------------------------------------------------
     // Tools
+    // ------------------------------------------------------------------
     ToolStarted {
         name: String,
     },
@@ -24,18 +70,47 @@ pub enum RuntimeEvent {
         success: bool,
     },
 
+    // ------------------------------------------------------------------
+    // Text-to-Speech
+    // ------------------------------------------------------------------
+    SpeechSynthesisStart {
+        text: String,
+    },
+    SpeechGenerated {
+        audio_path: Option<String>,
+        text: String,
+    },
+    SpeechGenerationFailed {
+        error: String,
+    },
+
+    // ------------------------------------------------------------------
+    // Audio Playback
+    // ------------------------------------------------------------------
+    AudioPlaybackStarted,
+    AudioPlaybackCompleted,
+    AudioPlaybackFailed {
+        error: String,
+    },
+
+    // ------------------------------------------------------------------
     // Runtime
+    // ------------------------------------------------------------------
     Status(String),
     Error {
         code: String,
         message: String,
     },
 
+    // ------------------------------------------------------------------
     // Connection
+    // ------------------------------------------------------------------
     Ping,
     Pong,
 
-    // Voice (future)
+    // ------------------------------------------------------------------
+    // Voice streaming
+    // ------------------------------------------------------------------
     VoiceStart,
     VoiceChunk {
         sequence: u64,
@@ -43,6 +118,8 @@ pub enum RuntimeEvent {
     },
     VoiceEnd,
 
+    // ------------------------------------------------------------------
     // Unknown / unsupported
+    // ------------------------------------------------------------------
     Unknown(Envelope),
 }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing_extensions import override
+
 from orion.bus.event_bus import EventBus
 from orion.orchestrator.config import OrchestratorConfig
 from orion.runtime.lifecycle import Lifecycle
@@ -36,6 +38,7 @@ class Orchestrator(Lifecycle):
 
         self._started = False
 
+    @override
     async def startup(self) -> None:
         """
         Initialize the ORION runtime.
@@ -47,6 +50,7 @@ class Orchestrator(Lifecycle):
         context = ServiceContext(
             llm=self.config.llm,
             memory=self.config.memory,
+            mcp_manager=self.config.mcp_manager,
         )
 
         self.runtime_services = setup_runtime_services(context)
@@ -71,6 +75,7 @@ class Orchestrator(Lifecycle):
 
         self._started = True
 
+    @override
     async def shutdown(self) -> None:
         """
         Gracefully shutdown the ORION runtime.

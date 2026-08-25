@@ -136,6 +136,18 @@ class MemoryContext:
 
     tags: list[str] = field(default_factory=list)
 
+@dataclass(slots=True)
+class GraphSchema:
+    """
+    Schema describing the structure of the knowledge graph
+
+    This is used to guide llms to towards reusing existing labels and
+    relationships types instead of inventing new ones.
+    """
+
+    labels: list[str] = field(default_factory=list)
+
+    relationship_types: list[str] = field(default_factory=list)
 
 @dataclass(slots=True)
 class RetrievedContext:
@@ -146,7 +158,9 @@ class RetrievedContext:
     summary: SummaryMemory | None = None
     # semantic memories
     episodes: list[ConversationEpisode] = field(default_factory=list)
-    # graph
+    # graph schema
+    graph_schema: GraphSchema | None = None
+    # graph facts
     facts: list[Fact] = field(default_factory=list)
     # recent chat history
     recent_messages: list[ConversationEpisode] = field(default_factory=list)

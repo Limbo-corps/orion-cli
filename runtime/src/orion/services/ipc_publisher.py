@@ -24,6 +24,7 @@ class IPCPublisherService(BaseService):
         """
         Publish a runtime event over IPC.
         """
+        session_id, correlation_id = self.validate_event(event);
 
         if event.type is None:
             return
@@ -45,6 +46,6 @@ class IPCPublisherService(BaseService):
         )
 
         await self._bridge.send(
-            session_id=event.session_id,
+            session_id=session_id,
             envelope=envelope,
         )

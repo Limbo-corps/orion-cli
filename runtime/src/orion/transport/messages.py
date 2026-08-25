@@ -7,13 +7,18 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 
+# ======================================================================
+# Message Types
+# ======================================================================
+
+
 class MessageType(StrEnum):
     """
     All message types supported by the Orion IPC protocol.
 
-    These messages define the contract between a client (TUI, mobile,
-    web, etc.) and the Orion runtime. Transport messages are intentionally
-    independent of the runtime's internal domain events.
+    Transport messages are intentionally independent of Orion's internal
+    domain event classes. Internal events are translated into Envelopes
+    before being sent to clients.
     """
 
     # ------------------------------------------------------------------
@@ -73,34 +78,63 @@ class MessageType(StrEnum):
     TOOL_FINISHED = "tool_finished"
 
     # ------------------------------------------------------------------
+    # Pipeline
+    # ------------------------------------------------------------------
+
+    #: Indicates that a processing pipeline has started.
+    PIPELINE_STARTED = "pipeline_started"
+
+    #: Indicates that a processing pipeline completed successfully.
+    PIPELINE_COMPLETED = "pipeline_completed"
+
+    #: Indicates that a processing pipeline failed.
+    PIPELINE_FAILED = "pipeline_failed"
+
+    #: Indicates that a processing pipeline was restarted.
+    PIPELINE_RESTARTED = "pipeline_restarted"
+
+    # ------------------------------------------------------------------
     # Runtime
     # ------------------------------------------------------------------
 
     #: General runtime status update.
     STATUS = "status"
 
-    #: Indicates an unrecoverable error.
+    #: Indicates an error.
     ERROR = "error"
+
+    #: Runtime event
+    RUNTIME_EVENT = "runtime_event"
+
+
+# ======================================================================
+# Envelope
+# ======================================================================
 
 
 class Envelope(BaseModel):
     """
-    A transport message exchanged between the Orion runtime and a client.
+    Transport envelope exchanged between the Orion runtime and clients.
 
-    Every message transmitted over the IPC channel is wrapped inside an
-    Envelope. The payload is interpreted according to the message type.
+    Every message transmitted over IPC is wrapped inside an Envelope.
+
+    The payload is interpreted according to the message type.
     """
 
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(
+        use_enum_values=True,
+    )
 
     #: Protocol version used for compatibility checks.
     version: int = 1
 
-    #: Unique identifier for this message.
-    id: UUID = Field(default_factory=uuid4)
+    #: Unique identifier for this individual message.
+    id: UUID = Field(
+        default_factory=uuid4,
+    )
 
-    #: ID of the request/workflow this message belongs to
-    correlation_id: UUID = Field(default_factory=uuid4)
+    #: Identifier of the request/workflow this message belongs to.
+    correlation_id: UUID | None = None
 
     #: Type of message being transmitted.
     type: MessageType
@@ -152,19 +186,24 @@ class VoiceChunkPayload(BaseModel):
 
 
 class VoiceEndPayload(BaseModel):
-    """Marks the end of a voice recording.
+    """
+    Marks the end of a voice recording.
 
-    Carries the path to the file the client recorded; the runtime reads and
-    transcribes it (the preferred, non-streamed flow).
+    Carries the path to the file the runtime should process.
     """
 
-    #: Filesystem path to the recorded audio, as seen by the runtime.
+    #: Filesystem path to the recorded audio.
     path: str
 
 
 # ======================================================================
 # Runtime -> Client
 # ======================================================================
+
+
+# ----------------------------------------------------------------------
+# Assistant
+# ----------------------------------------------------------------------
 
 
 class AssistantStartPayload(BaseModel):
@@ -180,6 +219,59 @@ class AssistantChunkPayload(BaseModel):
 
 class AssistantEndPayload(BaseModel):
     """Signals completion of assistant response generation."""
+
+
+# ----------------------------------------------------------------------
+# Pipeline
+# ----------------------------------------------------------------------
+
+
+class PipelineStartedPayload(BaseModel):
+    """Signals that a processing pipeline has started."""
+
+    #: Name of the pipeline.
+    pipeline: str
+
+
+class PipelineCompletedPayload(BaseModel):
+    """Signals that a processing pipeline completed successfully."""
+
+    #: Name of the pipeline.
+    pipeline: str
+
+
+class PipelineFailedPayload(BaseModel):
+    """
+    Describes a failed processing pipeline.
+
+    The traceback is optional so production clients do not have to
+    expose implementation details while development clients can still
+    display complete debugging information.
+    """
+
+    #: Name of the pipeline that failed.
+    pipeline: str
+
+    #: Machine-readable exception type.
+    error_type: str
+
+    #: Human-readable error message.
+    message: str
+
+    #: Full traceback when available.
+    traceback: str | None = None
+
+
+class PipelineRestartedPayload(BaseModel):
+    """Signals that a processing pipeline has been restarted."""
+
+    #: Name of the pipeline.
+    pipeline: str
+
+
+# ----------------------------------------------------------------------
+# Tool Execution
+# ----------------------------------------------------------------------
 
 
 class ToolStartedPayload(BaseModel):
@@ -199,6 +291,11 @@ class ToolFinishedPayload(BaseModel):
     success: bool
 
 
+# ----------------------------------------------------------------------
+# Runtime Status
+# ----------------------------------------------------------------------
+
+
 class StatusPayload(BaseModel):
     """General runtime status update."""
 
@@ -207,13 +304,78 @@ class StatusPayload(BaseModel):
 
 
 class ErrorPayload(BaseModel):
-    """Represents an error returned by the runtime."""
+    """
+    Represents an error returned by the runtime.
+
+    This is intended for errors that are not represented by a more
+    specific pipeline failure message.
+    """
 
     #: Machine-readable error identifier.
     code: str
 
     #: Human-readable error description.
     message: str
+
+    #: Exception type when available.
+    error_type: str | None = None
+
+    #: Pipeline associated with the error when applicable.
+    pipeline: str | None = None
+
+    #: Full traceback when available.
+    traceback: str | None = None
+
+
+# ----------------------------------------------------------------------
+# Voice / Speech
+# ----------------------------------------------------------------------
+
+
+class VoiceRecordingStartedPayload(BaseModel):
+    """Signals that voice recording has started."""
+
+
+class VoiceRecordingCompletedPayload(BaseModel):
+    """Signals that voice recording has completed."""
+
+    #: Path to the recorded audio.
+    path: str | None = None
+
+
+class TranscriptPayload(BaseModel):
+    """Contains a generated speech transcript."""
+
+    #: Transcribed text.
+    text: str
+
+
+class SpeechSynthesisPayload(BaseModel):
+    """Contains information about generated speech."""
+
+    #: Text that was synthesized.
+    text: str
+
+    #: Generated audio path, if available.
+    audio_path: str | None = None
+
+
+# ----------------------------------------------------------------------
+# Audio Playback
+# ----------------------------------------------------------------------
+
+
+class AudioPlaybackStartedPayload(BaseModel):
+    """Signals that audio playback has started."""
+
+
+class AudioPlaybackCompletedPayload(BaseModel):
+    """Signals that audio playback has completed."""
+
+
+# ----------------------------------------------------------------------
+# Connection
+# ----------------------------------------------------------------------
 
 
 class PingPayload(BaseModel):

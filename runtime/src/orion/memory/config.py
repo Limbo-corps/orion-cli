@@ -1,15 +1,84 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import os
+
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 
 @dataclass(slots=True)
 class MemoryConfig:
-    sqlite_db: str = "orion.db"
+    """
+    Configuration for the ORION memory subsystem.
 
-    embedding_model: str = "BAAI/bge-small-en-v1.5"
+    Values are loaded from environment variables when available,
+    with sensible local-development defaults.
+    """
 
-    qdrant_host: str = "localhost"
-    qdrant_port: int = 6333
+    # ==========================================================
+    # SQLite
+    # ==========================================================
 
-    neo4j_uri: str = "bolt://localhost:7687"
-    neo4j_username: str = "neo4j"
-    neo4j_password: str = "orion123"
+    sqlite_db: str = field(
+        default_factory=lambda: os.getenv(
+            "ORION_SQLITE_DB",
+            "orion.db",
+        )
+    )
+
+    # ==========================================================
+    # Embeddings
+    # ==========================================================
+
+    embedding_model: str = field(
+        default_factory=lambda: os.getenv(
+            "ORION_EMBEDDING_MODEL",
+            "BAAI/bge-small-en-v1.5",
+        )
+    )
+
+    # ==========================================================
+    # Qdrant
+    # ==========================================================
+
+    qdrant_host: str = field(
+        default_factory=lambda: os.getenv(
+            "QDRANT_HOST",
+            "localhost",
+        )
+    )
+
+    qdrant_port: int = field(
+        default_factory=lambda: int(
+            os.getenv(
+                "QDRANT_PORT",
+                "6333",
+            )
+        )
+    )
+
+    # ==========================================================
+    # Neo4j
+    # ==========================================================
+
+    neo4j_uri: str = field(
+        default_factory=lambda: os.getenv(
+            "NEO4J_URI",
+            "bolt://localhost:7687",
+        )
+    )
+
+    neo4j_username: str = field(
+        default_factory=lambda: os.getenv(
+            "NEO4J_USERNAME",
+            "neo4j",
+        )
+    )
+
+    neo4j_password: str = field(
+        default_factory=lambda: os.getenv(
+            "NEO4J_PASSWORD",
+            "",
+        )
+    )

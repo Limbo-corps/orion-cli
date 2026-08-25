@@ -6,15 +6,20 @@ starts the application, and performs graceful shutdown.
 """
 
 from __future__ import annotations
+import os
 
 
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from langchain_core.language_models.chat_models import BaseChatModel
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
 from orion.bus.event_bus import EventBus
+from orion.integrations._mcp.config import load_config
+from orion.integrations._mcp.manager import MCPManager
+from orion.llm.config import LLMConfig
+from orion.llm.factory import LLMFactory
 from orion.memory.config import MemoryConfig
 from orion.memory.module import MemoryModule
 from orion.memory.planner.planner import RetrievalPlanner
@@ -26,15 +31,21 @@ from orion.transport.bridge import IPCBridge
 from orion.transport.server import IPCServer
 
 console = Console()
+load_dotenv()
+MCP_CONFIG = os.getenv("MCP_CONFIG", "mcp.json")
+SOCKET_PATH = os.getenv("SOCKET_PATH", "/tmp/orion.sock")
 
 
-def create_llm() -> ChatGroq:
+def create_llm() -> BaseChatModel:
     """Create the application's primary LLM."""
 
-    return ChatGroq(
-        model="openai/gpt-oss-120b",
-        temperature=0,
+    config = LLMConfig()
+
+    providers = LLMFactory.create(
+        config,
     )
+
+    return providers.provider.create()
 
 
 def print_startup_banner() -> None:
@@ -66,14 +77,14 @@ def print_startup_banner() -> None:
 async def run() -> None:
     """Run the Orion application."""
 
-    load_dotenv()
-
     runtime = OrionRuntime()
 
     llm = create_llm()
 
     store = SQLiteEventStore()
     bus = EventBus(store)
+
+    mcp_manager = MCPManager(load_config(MCP_CONFIG))
 
     memory = MemoryModule(
         config=MemoryConfig(),
@@ -88,16 +99,18 @@ async def run() -> None:
             llm=llm,
             memory=memory,
             bridge=bridge,
+            mcp_manager=mcp_manager,
         ),
     )
 
     server = IPCServer(
-        socket_path="/tmp/orion.sock",
+        socket_path=SOCKET_PATH,
         session_handler=bridge.serve,
     )
 
     runtime.register(store)
     runtime.register(memory)
+    runtime.register(mcp_manager)
     runtime.register(orchestrator)
     runtime.register(server)
 

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import traceback
+
 from dotenv import load_dotenv
+from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import BaseTool
-from langchain_groq import ChatGroq
 from typing_extensions import override
 
 from orion.agent.graph import OrionGraph
@@ -21,11 +23,14 @@ from orion.events.events import (
     ResponseCompletedEvent,
     ResponseStartedEvent,
 )
-from orion.integrations._mcp.langchain_tools import load_mcp_tools
+from orion.integrations._mcp.langchain import create_mcp_tools
+from orion.integrations._mcp.manager import MCPManager
+from orion.llm.utils import message_content_to_text
 from orion.memory.models import RetrievedContext
 from orion.memory.module import MemoryModule
 from orion.memory.planner.planner import RetrievalPlanner
 from orion.services.base import BaseService
+
 
 _ = load_dotenv()
 
@@ -45,21 +50,25 @@ class AgentService(BaseService):
         ChatPipelineStartEvent,
     ]
 
-    def __init__(self, llm: ChatGroq, memory: MemoryModule) -> None:
+    def __init__(
+        self,
+        llm: BaseChatModel,
+        memory: MemoryModule,
+        mcp_manager: MCPManager,
+    ) -> None:
         super().__init__()
 
         self.llm = llm
         self.memory = memory
+        self.mcp_manager = mcp_manager
 
         self.planner = RetrievalPlanner(
             llm=self.llm,
         )
 
-        self._mcp_tools: list[BaseTool] = []
-
     @override
     async def startup(self) -> None:
-        self._mcp_tools = await load_mcp_tools("mcp.json")
+        pass
 
     @override
     async def shutdown(self) -> None:
@@ -82,17 +91,23 @@ class AgentService(BaseService):
             )
         )
 
-        session = self.memory.session(
-            session_id=event.session_id,
-            correlation_id=event.correlation_id,
+        session_id, correlation_id = self.validate_event(event)
+
+        mcp_tools = create_mcp_tools(
+            self.mcp_manager,
+            session_id=session_id,
+            correlation_id=correlation_id,
         )
 
-        builtin_tools = OrionTools()
-
         tools: list[BaseTool] = [
-            *builtin_tools.get_tools(),
-            *self._mcp_tools,
+            *OrionTools().get_tools(),
+            *mcp_tools,
         ]
+
+        session = self.memory.session(
+            session_id=session_id,
+            correlation_id=correlation_id,
+        )
 
         graph = OrionGraph(
             retrieve=RetrieveNode(session),
@@ -109,10 +124,12 @@ class AgentService(BaseService):
         )
 
         state: OrionState = {
-            "session_id": event.session_id,
-            "correlation_id": event.correlation_id,
+            "session_id": session_id,
+            "correlation_id": correlation_id,
             "messages": [
-                HumanMessage(content=event.text),
+                HumanMessage(
+                    content=event.text,
+                ),
             ],
             "context": RetrievedContext(),
         }
@@ -121,7 +138,15 @@ class AgentService(BaseService):
             result = await graph.ainvoke(state)
 
             response = result["messages"][-1]
-            assert isinstance(response.content, str)
+
+            response_content = message_content_to_text(
+                response.content,
+            )
+
+            if not response_content:
+                raise RuntimeError(
+                    "LLM returned an empty response."
+                )
 
             await self.publish(
                 ResponseStartedEvent(
@@ -141,7 +166,7 @@ class AgentService(BaseService):
                     session_id=event.session_id,
                     source=self.service_name,
                     message="Response chunk generated.",
-                    text=response.content,
+                    text=response_content,
                 )
             )
 
@@ -150,18 +175,23 @@ class AgentService(BaseService):
                     correlation_id=event.correlation_id,
                     session_id=event.session_id,
                     source=self.service_name,
-                    text=response.content,
+                    text=response_content,
                     message="Response generation completed.",
                 )
             )
 
         except Exception as exc:
+            error = (
+                f"{type(exc).__name__}: {exc}\n"
+                f"{traceback.format_exc()}"
+            )
+
             await self.publish(
                 PipelineFailedEvent(
                     correlation_id=event.correlation_id,
                     session_id=event.session_id,
                     source=self.service_name,
                     message="Agent processing failed.",
-                    error=str(exc),
+                    error=error,
                 )
             )
