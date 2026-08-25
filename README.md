@@ -448,9 +448,6 @@ This is the direction the project is heading:
 - Real token streaming and cancellable requests
 - Multi-modal perception and interaction
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
 ## Repository Layout
 
 ORION is a monorepo with two independent applications that share a single
