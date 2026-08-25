@@ -448,6 +448,194 @@ This is the direction the project is heading:
 - Real token streaming and cancellable requests
 - Multi-modal perception and interaction
 
+<<<<<<< HEAD
+=======
+## Repository Layout
+
+ORION is a monorepo with two independent applications that share a single
+Git repository and communicate over an IPC protocol:
+
+- **`runtime/`** — the Python AI runtime (daemon).
+- **`client/`** — the Rust (Ratatui) terminal client.
+
+```text
+orion/
+├── runtime/                  # Python AI runtime (daemon)
+│   ├── src/orion/            # Installable application package
+│   │   ├── __main__.py       # Package entrypoint
+│   │   ├── agent/            # Memory-aware agent graph and prompts
+│   │   ├── bus/              # Event bus and subscription helpers
+│   │   ├── cli/              # Typer CLI entrypoint
+│   │   ├── core/             # Shared utilities such as the singleton metaclass
+│   │   ├── events/           # Event models and registry
+│   │   ├── integrations/     # External integrations such as MCP
+│   │   ├── memory/           # Memory providers, planning, and persistence
+│   │   ├── orchestrator/     # Runtime bootstrapping and pipeline entrypoint
+│   │   ├── runtime/          # Runtime lifecycle and run loop
+│   │   ├── services/         # Recording, STT, agent, TTS, playback, logging
+│   │   ├── store/            # SQLite event persistence
+│   │   └── transport/        # IPC protocol and bridge to the client
+│   ├── tests/                # Behavior and smoke tests
+│   ├── pyproject.toml        # Runtime metadata and dependencies
+│   └── uv.lock
+├── client/                   # Rust (Ratatui) terminal client
+│   ├── Cargo.toml
+│   └── src/main.rs
+├── assets/                   # Logo and visual assets
+├── docker-compose.yml        # Qdrant + Neo4j backends for memory
+└── README.md
+```
+
+## How It Works
+
+### Event Bus
+
+The `EventBus` is the center of the runtime. Every event is written to the store first, then fanned out to subscribed handlers and global observers.
+
+### Orchestrator
+
+The orchestrator owns startup and shutdown:
+
+- builds the service list
+- starts each service
+- subscribes logging and UI observers
+- emits a `PipelineStartEvent`
+- tears everything down cleanly on exit
+
+### Services
+
+Each service is a small, focused unit:
+
+- `VoiceRecordingService` records microphone input and writes `data/audio/input.wav`
+- `TranscriptGenerationService` sends audio to Groq Whisper and emits text
+- `AgentService` turns the transcript into a response
+- `TTSService` synthesizes speech into `data/audio/output.wav`
+- `AudioPlaybackService` plays the response and closes the pipeline
+- `TUIService` mirrors the live stream into the terminal UI
+- `LoggingService` is available as a global observer hook
+
+## Requirements
+
+- Python 3.14+
+- Audio input device
+- Audio output device
+- `GROQ_API_KEY` configured in the environment
+
+## Installation
+
+The Python runtime lives in `runtime/`:
+
+```bash
+cd runtime
+uv sync
+```
+
+If you are not using `uv`, install the dependencies from `runtime/pyproject.toml` using your preferred Python tooling.
+
+## Configuration
+
+Create a `.env` file inside `runtime/` with your API key:
+
+```env
+GROQ_API_KEY=your_key_here
+```
+
+Optional local artifacts:
+
+- `orion.db` - SQLite event store
+- `data/audio/input.wav` - captured microphone input
+- `data/audio/output.wav` - generated response audio
+
+## Run
+
+Start the memory backends (from the repo root), then run the runtime:
+
+```bash
+docker compose up -d          # Qdrant + Neo4j
+cd runtime
+uv run python -m orion        # or: uv run orion
+```
+
+## Client (Rust)
+
+The terminal client lives in `client/` and is built with Cargo. Start the
+runtime first (it opens the IPC socket the client connects to), then:
+
+```bash
+cd client
+cargo run
+```
+
+The client is a Ratatui TUI that talks to the runtime over `/tmp/orion.sock`.
+It renders the conversation, a live event stream, and Copilot-style activity
+logs, with tachyonfx animations.
+
+### Keybindings
+
+| Key | Action |
+|-----|--------|
+| `i` | enter insert mode (type a prompt) |
+| `Enter` | send the typed prompt (insert mode) |
+| `Esc` | back to normal mode |
+| `v` | push-to-talk: press to start recording, press again to send |
+| `s` | stop the assistant's speech |
+| `j`/`k`, arrows, `PgUp`/`PgDn` | scroll the conversation |
+| `q` | quit |
+
+### Voice
+
+Voice is handled entirely by the client; the runtime never touches audio
+hardware:
+
+1. Press `v` to record from your microphone, `v` again to stop.
+2. The client saves a WAV and sends its path to the runtime over IPC.
+3. The runtime transcribes it (Groq Whisper) and runs the normal chat pipeline.
+4. The response streams back and the client speaks it aloud.
+
+Text-to-speech uses your system speech engine via **speech-dispatcher**. Install
+it to hear responses (otherwise TTS is silently skipped):
+
+```bash
+sudo pacman -S speech-dispatcher   # Arch / EndeavourOS
+# Debian/Ubuntu: sudo apt-get install -y speech-dispatcher
+```
+
+Building the client also needs the ALSA development headers for microphone
+capture (`cpal`):
+
+```bash
+sudo pacman -S alsa-lib            # Arch / EndeavourOS
+# Debian/Ubuntu: sudo apt-get install -y libasound2-dev
+```
+
+## Tests
+
+```bash
+cd runtime
+uv run pytest
+```
+
+## Before Pushing a PR
+
+Run the project checks locally before you push a pull request:
+
+```bash
+cd runtime
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+```
+
+If you are making code changes, it is worth running both commands again after your final edit so the PR starts clean.
+
+## Notes
+
+- `chat` is still a placeholder command.
+- `doctor` is intentionally minimal right now.
+- The current voice loop is continuous; it keeps starting new pipelines until the TUI exits.
+- The codebase is already structured for more advanced agents, but desktop control and coding automation are still future work.
+
+>>>>>>> b709827 (docs: add client keybindings and voice usage (v/s keys, speech-dispatcher))
 ## Vision
 
 ORION is being built toward a modular, observable intelligence system that can:
