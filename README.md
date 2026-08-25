@@ -449,6 +449,7 @@ This is the direction the project is heading:
 - Multi-modal perception and interaction
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 ## Repository Layout
 
@@ -636,6 +637,8 @@ If you are making code changes, it is worth running both commands again after yo
 - The codebase is already structured for more advanced agents, but desktop control and coding automation are still future work.
 
 >>>>>>> b709827 (docs: add client keybindings and voice usage (v/s keys, speech-dispatcher))
+=======
+>>>>>>> 03ba8c4 (feat: major changes, updated mcp architecture and added multi-llm integration)
 ## Vision
 
 ORION is being built toward a modular, observable intelligence system that can:

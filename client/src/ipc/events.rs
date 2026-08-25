@@ -61,7 +61,14 @@ pub enum RuntimeEvent {
 
     // ------------------------------------------------------------------
     // Tools
+<<<<<<< HEAD
     // ------------------------------------------------------------------
+=======
+<<<<<<< HEAD
+=======
+    // ------------------------------------------------------------------
+>>>>>>> b708882 (feat: major changes, updated mcp architecture and added multi-llm integration)
+>>>>>>> 03ba8c4 (feat: major changes, updated mcp architecture and added multi-llm integration)
     ToolStarted {
         name: String,
     },
