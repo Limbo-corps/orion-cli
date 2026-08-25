@@ -67,6 +67,8 @@ class IPCBridge:
         """
         Send an IPC message to a connected client.
         """
+        assert isinstance(session_id, UUID)
+        
         session = self._sessions.get(session_id)
 
         if session is None:

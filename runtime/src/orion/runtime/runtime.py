@@ -9,6 +9,8 @@ order, and shuts them down in reverse order.
 
 from __future__ import annotations
 
+from typing_extensions import override
+
 from orion.runtime.lifecycle import Lifecycle
 
 
@@ -42,6 +44,7 @@ class OrionRuntime(Lifecycle):
 
         self._lifecycles.append(lifecycle)
 
+    @override
     async def startup(self) -> None:
         """
         Start the runtime.
@@ -54,6 +57,7 @@ class OrionRuntime(Lifecycle):
 
         self._started = True
 
+    @override
     async def shutdown(self) -> None:
         """
         Shutdown the runtime.

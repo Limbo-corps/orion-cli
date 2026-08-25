@@ -228,7 +228,12 @@ impl App {
 
     pub fn handle_runtime_event(&mut self, event: RuntimeEvent) {
         match event {
-            RuntimeEvent::Connected => self.on_connected(),
+            // ------------------------------------------------------------------
+            // Connection
+            // ------------------------------------------------------------------
+            RuntimeEvent::Connected => {
+                self.on_connected();
+            }
 
             RuntimeEvent::Disconnected => {
                 self.mode = "DISCONNECTED".into();
@@ -237,60 +242,206 @@ impl App {
                     .push("DISCONNECTED", EventStatus::Failed, "runtime disconnected");
             }
 
-            RuntimeEvent::UserPrompt(text) => {
-                let text = text.trim().to_string();
-                // Ignore the echo of a prompt we already showed locally (typed);
-                // display it when it's new — i.e. a transcribed voice message.
-                if !text.is_empty()
-                    && self.conversation.last_user_text().as_deref() != Some(text.as_str())
-                {
-                    self.msg_counter += 1;
-                    self.conversation.add_message(Message::new(
-                        format!("msg-{}", self.msg_counter),
-                        Author::User,
-                        text,
-                    ));
-                    self.effects.on_message();
-                }
+            // ------------------------------------------------------------------
+            // Pipeline
+            // ------------------------------------------------------------------
+            RuntimeEvent::PipelineStart => {
+                self.mode = "PROCESSING".into();
+                self.events
+                    .push("PIPELINE", EventStatus::Running, "pipeline started");
             }
 
+            RuntimeEvent::VoicePipelineStart => {
+                self.mode = "VOICE PIPELINE".into();
+                self.events.push(
+                    "VOICE_PIPELINE",
+                    EventStatus::Running,
+                    "voice pipeline started",
+                );
+            }
+
+            RuntimeEvent::ChatPipelineStart => {
+                self.mode = "THINKING".into();
+                self.events.push(
+                    "CHAT_PIPELINE",
+                    EventStatus::Running,
+                    "chat pipeline started",
+                );
+            }
+
+            RuntimeEvent::PipelineComplete => {
+                self.mode = "IDLE".into();
+                self.events
+                    .bump_last("PIPELINE", EventStatus::Completed, "pipeline complete");
+            }
+
+            RuntimeEvent::PipelineFailed { error } => {
+                self.mode = "PIPELINE ERROR".into();
+                self.effects.on_status_change(theme::DANGER);
+
+                self.events
+                    .push("PIPELINE_FAILED", EventStatus::Failed, error.clone());
+
+                self.add_activity(format!("Pipeline failed: {}", error), ActivityKind::Failed);
+            }
+
+            RuntimeEvent::PipelineRestart => {
+                self.mode = "RESTARTING".into();
+                self.events.push(
+                    "PIPELINE_RESTART",
+                    EventStatus::Running,
+                    "pipeline restarting",
+                );
+            }
+
+            // ------------------------------------------------------------------
+            // Voice
+            // ------------------------------------------------------------------
+            RuntimeEvent::VoiceRecordingStart => {
+                self.mode = "RECORDING".into();
+                self.effects.on_status_change(theme::DANGER);
+
+                self.events
+                    .push("VOICE_RECORDING", EventStatus::Running, "recording started");
+            }
+
+            RuntimeEvent::VoiceRecordingCompleted { audio_path } => {
+                self.mode = "TRANSCRIBING".into();
+
+                self.events.push(
+                    "VOICE_RECORDING",
+                    EventStatus::Completed,
+                    audio_path.unwrap_or_else(|| "recording completed".into()),
+                );
+            }
+
+            RuntimeEvent::VoiceRecordingFailed { error } => {
+                self.mode = "REC ERROR".into();
+                self.effects.on_status_change(theme::DANGER);
+
+                self.events
+                    .push("VOICE_RECORDING", EventStatus::Failed, error.clone());
+
+                self.add_activity(format!("Recording failed: {}", error), ActivityKind::Failed);
+            }
+
+            RuntimeEvent::SpeechDetected => {
+                self.events
+                    .push("SPEECH", EventStatus::Running, "speech detected");
+            }
+
+            RuntimeEvent::SilenceDetected { silence_duration } => {
+                self.events.push(
+                    "SILENCE",
+                    EventStatus::Info,
+                    format!("silence detected ({:.2}s)", silence_duration),
+                );
+            }
+
+            // ------------------------------------------------------------------
+            // Speech-to-Text
+            // ------------------------------------------------------------------
+            RuntimeEvent::TranscriptGenerated { text } => {
+                self.mode = "THINKING".into();
+
+                self.events
+                    .push("TRANSCRIPT", EventStatus::Completed, text.clone());
+
+                self.conversation.add_message(Message::new(
+                    format!("msg-{}", self.msg_counter + 1),
+                    Author::User,
+                    text,
+                ));
+
+                self.msg_counter += 1;
+                self.effects.on_message();
+            }
+
+            RuntimeEvent::TranscriptGenerationFailed { error } => {
+                self.mode = "TRANSCRIPTION ERROR".into();
+                self.effects.on_status_change(theme::DANGER);
+
+                self.events
+                    .push("TRANSCRIPT", EventStatus::Failed, error.clone());
+
+                self.add_activity(
+                    format!("Transcription failed: {}", error),
+                    ActivityKind::Failed,
+                );
+            }
+
+            // ------------------------------------------------------------------
+            // Agent
+            // ------------------------------------------------------------------
+            RuntimeEvent::AgentProcessingStart => {
+                self.mode = "THINKING".into();
+
+                self.events
+                    .push("AGENT", EventStatus::Running, "agent processing started");
+            }
+
+            // ------------------------------------------------------------------
+            // Assistant
+            // ------------------------------------------------------------------
             RuntimeEvent::AssistantStart => {
                 self.mode = "RESPONDING".into();
                 self.msg_counter += 1;
 
-                // Begin a single message bubble for the streaming response
                 self.conversation
                     .begin_assistant_message(format!("msg-{}", self.msg_counter));
+
                 self.effects.on_message();
+
                 self.events
                     .push("RESPONSE", EventStatus::Running, "assistant responding");
             }
 
             RuntimeEvent::AssistantChunk(text) => {
                 self.conversation.append_assistant_chunk(&text);
-                // Coalesce chunk spam onto the running RESPONSE trace line.
+
                 self.events
                     .bump_last("RESPONSE", EventStatus::Running, "streaming…");
             }
 
             RuntimeEvent::AssistantEnd => {
                 self.mode = "IDLE".into();
+
                 self.conversation.finish_assistant_message();
+
                 self.events
                     .bump_last("RESPONSE", EventStatus::Completed, "response complete");
-                // Client-side TTS: speak the completed response.
+
                 self.speaker.speak(&self.conversation.last_assistant_text());
             }
 
+            RuntimeEvent::ResponseGenerationFailed { error } => {
+                self.mode = "RESPONSE ERROR".into();
+                self.effects.on_status_change(theme::DANGER);
+
+                self.events
+                    .push("RESPONSE", EventStatus::Failed, error.clone());
+
+                self.add_activity(
+                    format!("Response generation failed: {}", error),
+                    ActivityKind::Failed,
+                );
+            }
+
+            // ------------------------------------------------------------------
+            // Tools
+            // ------------------------------------------------------------------
             RuntimeEvent::ToolStarted { name } => {
                 self.mode = format!("TOOL: {}", name);
+
                 self.events
                     .push("TOOL_STARTED", EventStatus::Running, name.clone());
+
                 self.add_activity(format!("Running {}…", name), ActivityKind::Running);
             }
 
             RuntimeEvent::ToolFinished { name, success } => {
                 let label = if success { "OK" } else { "FAILED" };
+
                 self.mode = format!("TOOL {}: {}", label, name);
 
                 let status = if success {
@@ -298,6 +449,7 @@ impl App {
                 } else {
                     EventStatus::Failed
                 };
+
                 self.events.push("TOOL_FINISHED", status, name.clone());
 
                 if success {
@@ -307,39 +459,124 @@ impl App {
                 }
             }
 
+            // ------------------------------------------------------------------
+            // Text-to-Speech
+            // ------------------------------------------------------------------
+            RuntimeEvent::SpeechSynthesisStart { text } => {
+                self.mode = "SYNTHESIZING".into();
+
+                self.events.push("TTS", EventStatus::Running, text);
+            }
+
+            RuntimeEvent::SpeechGenerated { audio_path, text } => {
+                self.mode = "IDLE".into();
+
+                self.events
+                    .push("TTS", EventStatus::Completed, audio_path.unwrap_or(text));
+            }
+
+            RuntimeEvent::SpeechGenerationFailed { error } => {
+                self.mode = "TTS ERROR".into();
+                self.effects.on_status_change(theme::DANGER);
+
+                self.events.push("TTS", EventStatus::Failed, error.clone());
+
+                self.add_activity(
+                    format!("Speech synthesis failed: {}", error),
+                    ActivityKind::Failed,
+                );
+            }
+
+            // ------------------------------------------------------------------
+            // Audio Playback
+            // ------------------------------------------------------------------
+            RuntimeEvent::AudioPlaybackStarted => {
+                self.mode = "PLAYING".into();
+
+                self.events
+                    .push("PLAYBACK", EventStatus::Running, "audio playback started");
+            }
+
+            RuntimeEvent::AudioPlaybackCompleted => {
+                self.mode = "IDLE".into();
+
+                self.events.bump_last(
+                    "PLAYBACK",
+                    EventStatus::Completed,
+                    "audio playback complete",
+                );
+            }
+
+            RuntimeEvent::AudioPlaybackFailed { error } => {
+                self.mode = "PLAYBACK ERROR".into();
+                self.effects.on_status_change(theme::DANGER);
+
+                self.events
+                    .push("PLAYBACK", EventStatus::Failed, error.clone());
+
+                self.add_activity(
+                    format!("Audio playback failed: {}", error),
+                    ActivityKind::Failed,
+                );
+            }
+
+            // ------------------------------------------------------------------
+            // Runtime
+            // ------------------------------------------------------------------
             RuntimeEvent::Status(status) => {
                 self.mode = status.clone();
+
                 self.events.push("STATUS", EventStatus::Info, status);
             }
 
             RuntimeEvent::Error { code, message } => {
                 self.mode = format!("ERROR: {}", message);
                 self.effects.on_status_change(theme::DANGER);
+
                 self.events.push(
                     "ERROR",
                     EventStatus::Failed,
                     format!("{}: {}", code, message),
                 );
+
+                self.add_activity(format!("{}: {}", code, message), ActivityKind::Failed);
             }
 
-            // Heartbeat — intentionally not traced (too noisy).
-            RuntimeEvent::Ping | RuntimeEvent::Pong => {}
+            // ------------------------------------------------------------------
+            // Heartbeat
+            // ------------------------------------------------------------------
+            RuntimeEvent::Ping | RuntimeEvent::Pong => {
+                // Intentionally not traced.
+            }
 
+            // ------------------------------------------------------------------
+            // Voice streaming
+            // ------------------------------------------------------------------
             RuntimeEvent::VoiceStart => {
                 self.mode = "VOICE RECORDING".into();
+
                 self.events
                     .push("VOICE_START", EventStatus::Running, "recording");
             }
 
-            RuntimeEvent::VoiceChunk { .. } => {}
+            RuntimeEvent::VoiceChunk { .. } => {
+                // Audio chunks are intentionally not logged individually.
+            }
 
             RuntimeEvent::VoiceEnd => {
                 self.mode = "PROCESSING VOICE".into();
+
                 self.events
                     .push("VOICE_END", EventStatus::Info, "processing");
             }
 
-            RuntimeEvent::Unknown(_) => {}
+            // ------------------------------------------------------------------
+            // Unknown
+            // ------------------------------------------------------------------
+            RuntimeEvent::Unknown(_) => {
+                self.events
+                    .push("UNKNOWN", EventStatus::Info, "unsupported runtime event");
+            }
         }
     }
 

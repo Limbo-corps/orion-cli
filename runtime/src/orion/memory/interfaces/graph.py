@@ -1,65 +1,91 @@
 from abc import ABC, abstractmethod
 
-from orion.memory.models import Entity, Fact, Relationship
+from orion.memory.models import Entity, Fact, GraphSchema
 
 
 class KnowledgeGraph(ABC):
     """
-    Abstract Knowledge Graph.
+    Abstract knowledge graph.
 
-    Graph is reponsible only for storing and
-    retrieving structured facts
+    Responsible only for storing and retrieving structured knowledge.
 
-    It never dedicates what should be remastered
-    The LLM controls all graph mutations through tools
+    Implementations may use Neo4j, an MCP server, an in-memory graph,
+    or any other graph backend.
     """
+
+    # ==========================================================
+    # Lifecycle
+    # ==========================================================
 
     @abstractmethod
     async def startup(self) -> None:
         """
-        Initialize the graph backend
+        Initialize the graph backend.
         """
         raise NotImplementedError
 
     @abstractmethod
     async def shutdown(self) -> None:
         """
-        Gracefully shutdown the graph backend
+        Gracefully shutdown the graph backend.
+        """
+        raise NotImplementedError
+
+    # ==========================================================
+    # Storage
+    # ==========================================================
+
+    @abstractmethod
+    async def add_fact(
+        self,
+        fact: Fact,
+    ) -> None:
+        """
+        Store a single fact.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def add_entity(self, entity: Entity) -> None:
+    async def add_facts(
+        self,
+        facts: list[Fact],
+    ) -> None:
         """
-        Insert or Update an Entity
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    async def add_relationship(self, relationship: Relationship) -> None:
-        """
-        Insert or update a Relationship
+        Store multiple facts efficiently.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def add_fact(self, fact: Fact) -> None:
+    async def remove_fact(
+        self,
+        fact: Fact,
+    ) -> None:
         """
-        Convinience API for adding a fast triple
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    async def remove_fact(self, fact: Fact) -> None:
-        """
-        Remove a fact from the graph
+        Remove a single fact.
         """
         raise NotImplementedError
 
     @abstractmethod
-    async def query(self, query: str) -> list[Fact]:
+    async def remove_facts(
+        self,
+        facts: list[Fact],
+    ) -> None:
         """
-        Query the knowledge Graph
+        Remove multiple facts.
+        """
+        raise NotImplementedError
+
+    # ==========================================================
+    # Retrieval
+    # ==========================================================
+
+    @abstractmethod
+    async def search_facts(
+        self,
+        query: str,
+    ) -> list[Fact]:
+        """
+        Search for facts relevant to a query or entity.
         """
         raise NotImplementedError
 
@@ -71,20 +97,31 @@ class KnowledgeGraph(ABC):
         depth: int = 1,
     ) -> list[Entity]:
         """
-        Retrieve entities related to the given entity.
+        Retrieve entities connected to the supplied entity.
         """
         raise NotImplementedError
 
     @abstractmethod
+    async def get_schema(self) -> GraphSchema:
+        """
+        Retrieve the graph schema.
+        """
+        raise NotImplementedError
+
+    # ==========================================================
+    # Maintenance
+    # ==========================================================
+
+    @abstractmethod
     async def clear(self) -> None:
         """
-        Remove all graph data.
+        Remove every stored entity and fact.
         """
         raise NotImplementedError
 
     @abstractmethod
     async def count(self) -> int:
         """
-        Return the number of stored facts.
+        Return the total number of stored facts.
         """
         raise NotImplementedError

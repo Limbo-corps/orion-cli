@@ -37,10 +37,10 @@ class Event(BaseModel):
     event_id: UUID = Field(default_factory=uuid4)
 
     #: Correlates related events belonging to the same workflow/request.
-    correlation_id: UUID
+    correlation_id: UUID | None
 
     #: Client session that originated the event.
-    session_id: UUID
+    session_id: UUID | None
 
     #: Time at which the event was created.
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

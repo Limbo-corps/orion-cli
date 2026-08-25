@@ -179,7 +179,7 @@ class MemorySession:
             )
         )
 
-        facts = await self.module.graph.query(query)
+        facts = await self.module.graph.search_facts(query)
 
         await self.event_bus.publish(
             GraphQueryCompletedEvent(
@@ -211,39 +211,59 @@ class MemorySession:
         self,
         fact: Fact,
     ) -> None:
+        await self.remember_facts([fact])
 
-        await self.module.graph.add_fact(fact)
+    async def remember_facts(
+        self,
+        facts: list[Fact],
+    ) -> None:
 
-        await self.event_bus.publish(
-            GraphFactAddedEvent(
-                session_id=self.session_id,
-                correlation_id=self.correlation_id,
-                source=self.SOURCE,
-                subject=fact.subject,
-                predicate=fact.predicate,
-                object=fact.object,
-                message="Fact added.",
+        if not facts:
+            return
+
+        await self.module.graph.add_facts(facts)
+
+        for fact in facts:
+            await self.event_bus.publish(
+                GraphFactAddedEvent(
+                    session_id=self.session_id,
+                    correlation_id=self.correlation_id,
+                    source=self.SOURCE,
+                    subject=fact.subject,
+                    predicate=fact.predicate,
+                    object=fact.object,
+                    message="Fact added.",
+                )
             )
-        )
 
     async def forget_fact(
         self,
         fact: Fact,
     ) -> None:
+        await self.forget_facts([fact])
 
-        await self.module.graph.remove_fact(fact)
+    async def forget_facts(
+        self,
+        facts: list[Fact],
+    ) -> None:
 
-        await self.event_bus.publish(
-            GraphFactRemovedEvent(
-                session_id=self.session_id,
-                correlation_id=self.correlation_id,
-                source=self.SOURCE,
-                subject=fact.subject,
-                predicate=fact.predicate,
-                object=fact.object,
-                message="Fact removed.",
+        if not facts:
+            return
+
+        await self.module.graph.remove_facts(facts)
+
+        for fact in facts:
+            await self.event_bus.publish(
+                GraphFactRemovedEvent(
+                    session_id=self.session_id,
+                    correlation_id=self.correlation_id,
+                    source=self.SOURCE,
+                    subject=fact.subject,
+                    predicate=fact.predicate,
+                    object=fact.object,
+                    message="Fact removed.",
+                )
             )
-        )
 
     # ------------------------------------------------------------------
     # Combined Retrieval
